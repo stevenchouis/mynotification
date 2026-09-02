@@ -31,7 +31,13 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# Firebase / Google Cloud 服務帳戶金鑰（有後台/推播權限，絕不能進版控）
+firebase-adminsdk*.json
+*firebase-adminsdk*.json
+gcp/
 
 # typescript
 *.tsbuildinfo
