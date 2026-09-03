@@ -25,6 +25,8 @@ import { LoginFormValues, loginSchema } from '../schemas/authSchema';
 import { completeLogin } from '../services/authFlow';
 // Google 原生登入（帳號選擇畫面 -> 取得 idToken）
 import { signInWithGoogle } from '../services/googleAuth';
+// LINE 登入（原生 SDK -> 直接取得 idToken，換自家 JWT 在後端完成）
+import { signInWithLine } from '../services/lineAuth';
 // Global Status JWT userToken 和 setUserToken 方法
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -51,6 +53,7 @@ const LoginIndex = () => {
   // 從全局狀態管理的Hook中取得 userToken 和 setUserToken 方法
   const { userToken } = useAuthStore();
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isLineSubmitting, setIsLineSubmitting] = useState(false);
   const [isMagicLinkSubmitting, setIsMagicLinkSubmitting] = useState(false);
 
   // 1. 自動檢查登入狀態, 若沒有取得TOken, 就停留在登入頁面；如果有Token, 就直接跳轉到 Home 頁面
@@ -114,6 +117,26 @@ const LoginIndex = () => {
       console.error("Google login process error:", error.message);
     } finally {
       setIsGoogleSubmitting(false);
+    }
+  };
+
+  // 3.5 onLineLogin：跳出原生 LINE 登入流程，拿到 idToken 後交給後端換自家 JWT
+  const onLineLogin = async () => {
+    setIsLineSubmitting(true);
+    try {
+      const idToken = await signInWithLine();
+      if (!idToken) {
+        // 使用者中途取消 LINE 登入，不視為錯誤，直接返回
+        return;
+      }
+      const loginRes = await axios.post(`${API_URL}/api/v1/login/line`, { id_token: idToken });
+      await completeLogin(loginRes.data.access_token);
+    } catch (error: any) {
+      const detail = error.response?.data?.detail || 'LINE 登入失敗，請稍後再試';
+      Alert.alert('錯誤', detail);
+      console.error("LINE login process error:", error.message);
+    } finally {
+      setIsLineSubmitting(false);
     }
   };
 
@@ -254,6 +277,23 @@ const LoginIndex = () => {
           )}
         </Pressable>
 
+        {/* LINE 登入按鈕：跳出原生 LINE 登入流程 */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.lineButton,
+            isLineSubmitting && styles.buttonDisabled,
+            pressed && { opacity: 0.85 }
+          ]}
+          onPress={onLineLogin}
+          disabled={isLineSubmitting || isSubmitting}
+        >
+          {isLineSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.lineButtonText}>使用 LINE 登入</Text>
+          )}
+        </Pressable>
+
         {/* Magic Link 登入入口：使用表單目前輸入的 Email，請後端寄送登入連結 */}
         <Pressable
           style={({ pressed }) => [styles.magicLinkLink, pressed && { opacity: 0.6 }]}
@@ -344,6 +384,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   googleButtonText: { color: '#333', fontSize: 16, fontWeight: '600' },
+  // LINE 品牌色 #06C755，比照 LINE 官方登入按鈕的視覺規範
+  lineButton: {
+    flexDirection: 'row',
+    backgroundColor: '#06C755',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  lineButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Magic Link 連結樣式，比照 registerLink 的簡樸連結風格
   magicLinkLink: { marginTop: 16, alignItems: 'center' },
   magicLinkText: { color: '#007AFF', fontSize: 14, fontWeight: '500' },

@@ -11,6 +11,11 @@ export const api = axios.create({
   },
 });
 
+// 刻意保留：之前 LINE 登入除錯時，終端機殘留的手動 $env:EXPO_PUBLIC_API_URL 蓋過了
+// .env.local/.env.development，導致 App 實際打的網址跟以為的不一樣、誤判成後端邏輯錯誤
+// （見 plan-line-login.md 除錯回顧第 4 點）。留著這行，每次啟動能在終端機直接看到目前生效的網址。
+console.log(`[api] baseURL = ${api.defaults.baseURL}`);
+
 // 請求攔截器：自動為每個請求加上 Authorization Header
 api.interceptors.request.use(
   async (config) => {

@@ -2,7 +2,8 @@
 import axios from 'axios';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import Toast from 'react-native-toast-message';
 
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -42,6 +43,12 @@ export async function completeLogin(accessToken: string) {
     );
   }
 
-  Alert.alert('登入成功', '歡迎使用系統');
   router.replace('/home');
+  Toast.show({
+    type: 'success',
+    text1: '登入成功',
+    text2: '歡迎使用系統',
+    position: 'bottom',
+    visibilityTime: 1000,
+  });
 }

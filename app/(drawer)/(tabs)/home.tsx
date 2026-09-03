@@ -5,7 +5,9 @@
 // 之後若要接真實內容（行銷橫幅、真正的商品/優惠），需要後端新增對應的資料模型與 API。
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
+import { DrawerActions } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, View
@@ -23,7 +25,9 @@ import Text from '../../../components/Text';
 import {
   ALL_CATEGORY, fetchCategories, fetchProducts, Product, ProductCategory, PRODUCTS_API
 } from '../../../services/products';
+import { fetchPromoBanners } from '../../../services/promotions';
 import { useFavoritesStore } from '../../../store/useFavoritesStore';
+import { useNotificationStore } from '../../../store/useNotificationStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAROUSEL_WIDTH = SCREEN_WIDTH - 32;
@@ -62,6 +66,53 @@ async function fetchBannerImages(): Promise<string[]> {
 
 const MARQUEE_TEXT = '🌿 新優惠券已上架　｜　會員日活動開跑　｜　感謝您使用 mynotification　｜　';
 
+interface QuickAction {
+  id: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  route?: '/coupons' | '/favorites' | '/inbox' | '/settings' | '/faq' | '/about' | '/privacy';
+  isDrawerToggle?: boolean;
+}
+
+// 4x2 功能捷徑：全部對應 App 內既有畫面，不是假連結
+const QUICK_ACTIONS: QuickAction[] = [
+  { id: 'coupons', label: '我的優惠券', icon: 'pricetag-outline', route: '/coupons' },
+  { id: 'favorites', label: '我的收藏', icon: 'heart-outline', route: '/favorites' },
+  { id: 'inbox', label: '通知中心', icon: 'notifications-outline', route: '/inbox' },
+  { id: 'settings', label: '帳號設定', icon: 'settings-outline', route: '/settings' },
+  { id: 'faq', label: '常見問題', icon: 'help-circle-outline', route: '/faq' },
+  { id: 'about', label: '關於此App', icon: 'information-circle-outline', route: '/about' },
+  { id: 'privacy', label: '隱私權政策', icon: 'shield-checkmark-outline', route: '/privacy' },
+  { id: 'more', label: '全部服務', icon: 'grid-outline', isDrawerToggle: true },
+];
+
+interface PromoSlide {
+  id: string;
+  tag: string;
+  title: string;
+  subtitle: string;
+  color: string;
+  imageUrl?: string;
+}
+
+// 小型活動輪播：內容改由後端資料庫提供（services/promotions.ts 的 fetchPromoBanners，
+// API 契約已跟 back-end session 確認定案）。以下是改版前的舊寫法，留著對照：
+//
+// const PROMO_COPY: Omit<PromoSlide, 'id' | 'imageUrl'>[] = [
+//   { tag: '限時', title: '9 月會員日', subtitle: '單筆消費滿 $999 折 $100', color: '#F3EDE4' },
+//   { tag: '新品', title: '秋冬選物特輯', subtitle: '本季新品，即日起搶先看', color: '#EDE2D3' },
+//   { tag: '好禮', title: '集點兌換', subtitle: '消費集點，兌換生活好禮', color: '#E3D9CE' },
+// ];
+//
+// async function fetchPromoImages(): Promise<string[]> {
+//   const res = await fetch(
+//     `${PRODUCTS_API}/products?limit=${PROMO_COPY.length}&skip=${BANNER_COPY.length}&select=images`
+//   );
+//   if (!res.ok) throw new Error('無法取得輪播圖片');
+//   const data: { products: { images: string[] }[] } = await res.json();
+//   return data.products.map((p) => p.images?.[0]).filter((url): url is string => !!url);
+// }
+
 // Fisher-Yates 洗牌，回傳新陣列，不修改原本的陣列
 function shuffle<T>(array: T[]): T[] {
   const result = [...array];
@@ -99,6 +150,90 @@ function Marquee() {
         </Text>
         <Text style={styles.marqueeText}>{MARQUEE_TEXT}</Text>
       </Animated.View>
+    </View>
+  );
+}
+
+// 首頁搜尋列：純導航用的假輸入框，點下去 push 進 app/search.tsx 才是真正的輸入框
+function HomeSearchBar() {
+  const router = useRouter();
+  return (
+    <Pressable style={styles.searchBar} onPress={() => router.push('/search')}>
+      <Ionicons name="search" size={18} color="#8A8377" />
+      <Text style={styles.searchBarPlaceholder}>搜尋商品</Text>
+    </Pressable>
+  );
+}
+
+// 4x2 功能 Grid：8 個入口對應 App 內既有畫面，通知入口的紅點讀 useNotificationStore 的即時未讀數
+function QuickActionsGrid() {
+  const router = useRouter();
+  const navigation = useNavigation();
+  const unreadCount = useNotificationStore((state) => state.unreadCount);
+
+  const handlePress = (action: QuickAction) => {
+    if (action.isDrawerToggle) {
+      navigation.dispatch(DrawerActions.openDrawer());
+      return;
+    }
+    if (action.route) {
+      router.push(action.route);
+    }
+  };
+
+  return (
+    <View style={styles.quickGrid}>
+      {QUICK_ACTIONS.map((action) => (
+        <Pressable key={action.id} style={styles.quickAction} onPress={() => handlePress(action)}>
+          <View style={styles.quickIconCircle}>
+            <Ionicons name={action.icon} size={22} color="#5C5449" />
+            {action.id === 'inbox' && unreadCount > 0 && (
+              <View style={styles.quickBadge}>
+                <Text style={styles.quickBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.quickLabel} numberOfLines={1}>{action.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+// 小型活動輪播：跟大輪播共用 Carousel 元件，只是高度縮小、左文案右圖片的構圖
+function PromoCarousel({ banners }: { banners: PromoSlide[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  return (
+    <View style={styles.carouselWrapper}>
+      <Carousel
+        style={{ width: CAROUSEL_WIDTH, height: 88 }}
+        data={banners}
+        loop
+        autoplay
+        autoplayInterval={4000}
+        keyExtractor={(item) => item.id}
+        onSnapToItem={setActiveIndex}
+        renderItem={({ item }) => (
+          <View style={[styles.promoSlide, { backgroundColor: item.color }]}>
+            <View style={styles.promoTextGroup}>
+              <View style={styles.promoTagPill}>
+                <Text style={styles.promoTagText}>{item.tag}</Text>
+              </View>
+              <Text style={styles.promoTitle}>{item.title}</Text>
+              <Text style={styles.promoSubtitle} numberOfLines={1}>{item.subtitle}</Text>
+            </View>
+            {item.imageUrl && (
+              <Image source={{ uri: item.imageUrl }} style={styles.promoImage} resizeMode="cover" />
+            )}
+          </View>
+        )}
+      />
+      <View style={styles.dotsRow}>
+        {banners.map((banner, index) => (
+          <View key={banner.id} style={[styles.dot, index === activeIndex && styles.dotActive]} />
+        ))}
+      </View>
     </View>
   );
 }
@@ -172,19 +307,24 @@ function ProductRecommendations({ products }: { products: Product[] }) {
 
 interface HomeHeaderProps {
   banners: BannerSlide[];
+  promoBanners: PromoSlide[];
   categories: ProductCategory[];
   isCategoriesLoading: boolean;
   selectedCategory: string;
   onSelectCategory: (slug: string) => void;
 }
 
-function HomeHeader({ banners, categories, isCategoriesLoading, selectedCategory, onSelectCategory }: HomeHeaderProps) {
+function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, selectedCategory, onSelectCategory }: HomeHeaderProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   return (
     <View>
       <Text style={styles.greeting}>歡迎回來</Text>
       <Text style={styles.greetingSubtitle}>今天也為生活留一點空白</Text>
+
+      <HomeSearchBar />
+      <PromoCarousel banners={promoBanners} />
+      <QuickActionsGrid />
 
       <View style={styles.carouselWrapper}>
         <Carousel
@@ -264,6 +404,11 @@ export default function HomeScreen() {
     imageUrl: bannerImages[index],
   }));
 
+  const { data: promoBanners = [] } = useQuery({
+    queryKey: ['promo-banners'],
+    queryFn: fetchPromoBanners,
+  });
+
   const { data: categories = [], isLoading: isCategoriesLoading } = useQuery({
     queryKey: ['product-categories'],
     queryFn: fetchCategories,
@@ -305,6 +450,7 @@ export default function HomeScreen() {
       ListHeaderComponent={
         <HomeHeader
           banners={banners}
+          promoBanners={promoBanners}
           categories={categories}
           isCategoriesLoading={isCategoriesLoading}
           selectedCategory={selectedCategory}
@@ -350,6 +496,12 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 24, fontWeight: '600', color: '#333333' },
   greetingSubtitle: { fontSize: 13, color: '#8A8377', marginTop: 4, marginBottom: 20 },
 
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', height: 40, borderRadius: 10,
+    backgroundColor: '#F5F3EF', paddingHorizontal: 12, gap: 8, marginBottom: 20
+  },
+  searchBarPlaceholder: { fontSize: 14, color: '#B0AA9C' },
+
   carouselWrapper: { alignItems: 'center' },
   bannerSlide: {
     flex: 1, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
@@ -362,6 +514,32 @@ const styles = StyleSheet.create({
   dotsRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 12, gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#E3DED4' },
   dotActive: { backgroundColor: '#A69B8D', width: 16 },
+
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 20 },
+  quickAction: { width: '25%', alignItems: 'center', marginBottom: 16 },
+  quickIconCircle: {
+    width: 48, height: 48, borderRadius: 24, backgroundColor: '#F5F3EF',
+    justifyContent: 'center', alignItems: 'center'
+  },
+  quickBadge: {
+    position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3
+  },
+  quickBadgeText: { fontSize: 9, color: '#fff', fontWeight: '700' },
+  quickLabel: { fontSize: 11, color: '#5C5449', marginTop: 6, textAlign: 'center' },
+
+  promoSlide: {
+    flex: 1, borderRadius: 16, flexDirection: 'row', alignItems: 'center', overflow: 'hidden'
+  },
+  promoTextGroup: { flex: 1, paddingLeft: 16, paddingVertical: 12 },
+  promoImage: { width: 110, height: '100%', backgroundColor: '#F5F3EF' },
+  promoTagPill: {
+    alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 8,
+    paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4
+  },
+  promoTagText: { fontSize: 10, color: '#8A6D3B', fontWeight: '600' },
+  promoTitle: { fontSize: 15, fontWeight: '600', color: '#3A362E' },
+  promoSubtitle: { fontSize: 12, color: '#8A8377', marginTop: 2 },
 
   marqueeContainer: {
     marginTop: 20, height: 36, borderRadius: 8, backgroundColor: '#F5F3EF',

@@ -50,7 +50,16 @@
           "iosUrlScheme": "com.googleusercontent.apps.993805207886-8m26i9g27ngu1d2kmbnt0qgo2kg19jph"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@xmartlabs/react-native-line",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

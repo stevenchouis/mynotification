@@ -32,6 +32,8 @@ yarn-error.*
 
 # local env files
 .env
+.env.development
+.env.production
 .env*.local
 
 # Firebase / Google Cloud 服務帳戶金鑰（有後台/推播權限，絕不能進版控）

@@ -41,7 +41,9 @@ export default function TabLayout() {
     setUnreadCount(count);
   }, [notifications, setUnreadCount]);
 
-  // 4. 處理 Push Token 同步
+  // 4. 處理 Push Token 同步（處理重新登入的情況，靜默執行不彈 Toast——
+  // 剛登入時 completeLogin() 已經同步過一次、也已經顯示過登入成功的 Toast，
+  // 這裡每次掛載都會再跑一次，如果也跳 Toast 會在登入當下疊出兩則訊息）
   useEffect(() => {
     const syncPushToken = async () => {
       try {
@@ -51,12 +53,6 @@ export default function TabLayout() {
           { token, device_name: Platform.OS },
           { headers: { Authorization: `Bearer ${userToken}` } }
         );
-        Toast.show({
-          type: 'success',
-          text1: '系統同步',
-          text2: '裝置推送 Token 同步成功！🚀',
-          visibilityTime: 2000,
-        });
       } catch (e) {
         console.warn("Token 同步失敗", e);
       }
@@ -80,6 +76,7 @@ export default function TabLayout() {
         type: 'info',
         text1: notification.request.content.title || '新通知',
         text2: notification.request.content.body || '',
+        visibilityTime: 1000,
       });
     });
 

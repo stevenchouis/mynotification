@@ -40,3 +40,10 @@ export async function fetchProductById(id: number): Promise<Product> {
   if (!res.ok) throw new Error('無法取得商品資料');
   return res.json();
 }
+
+export async function searchProducts(query: string): Promise<Product[]> {
+  const res = await fetch(`${PRODUCTS_API}/products/search?q=${encodeURIComponent(query)}&limit=30`);
+  if (!res.ok) throw new Error('搜尋商品失敗');
+  const data: { products: Product[] } = await res.json();
+  return data.products;
+}

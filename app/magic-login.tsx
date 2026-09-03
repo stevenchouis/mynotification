@@ -9,11 +9,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Text from '../components/Text';
 import { completeLogin } from '../services/authFlow';
+import { useAuthStore } from '../store/useAuthStore';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function MagicLoginScreen() {
   const router = useRouter();
+  // 這支畫面不論登入狀態都能被導航到（見 app/_layout.tsx），錯誤畫面的「返回登入」
+  // 要看目前是否已登入決定要導去哪裡：已登入時 index 不在目前的 Stack.Protected 群組裡，
+  // 硬導去 '/' 會噴 "action REPLACE...was not handled by any navigator"
+  const userToken = useAuthStore((state) => state.userToken);
   const { token } = useLocalSearchParams<{ token?: string }>();
   const [status, setStatus] = useState<'verifying' | 'error'>('verifying');
   const [errorMessage, setErrorMessage] = useState('');
@@ -26,6 +31,14 @@ export default function MagicLoginScreen() {
 
     const verify = async () => {
       if (!token) {
+        // 這支畫面「不論登入狀態都能被導航到」，任何登入方式成功後 Stack.Protected 的
+        // guard 翻轉都會讓整個 Stack 重新初始化，這時 Expo Router 有機率重新套用裝置上
+        // 殘留的舊 magic-login deep link（沒有 token），並不是真的連結壞掉。已經是登入
+        // 狀態的話代表就是這種情況，直接靜默導回首頁，不要嚇使用者跳出一個錯誤畫面。
+        if (useAuthStore.getState().userToken) {
+          router.replace('/home');
+          return;
+        }
         setStatus('error');
         setErrorMessage('登入連結格式不正確');
         return;
@@ -53,7 +66,7 @@ export default function MagicLoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.errorText}>{errorMessage}</Text>
-      <Pressable style={styles.button} onPress={() => router.replace('/')}>
+      <Pressable style={styles.button} onPress={() => router.replace(userToken ? '/home' : '/')}>
         <Text style={styles.buttonText}>返回登入</Text>
       </Pressable>
     </SafeAreaView>
