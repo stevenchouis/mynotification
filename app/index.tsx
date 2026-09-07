@@ -186,9 +186,8 @@ const LoginIndex = () => {
       style={{ flex: 1 }}
     >
       <View style={styles.inner}>
-        <Text style={styles.title}>FastAPI 系統</Text>
-        <Text style={styles.subtitle}>請輸入您的帳號密碼</Text>
-        
+        <Text style={styles.title}>寶雅電商餐飲系統</Text>
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>帳號 (Email)</Text>
           <Controller
@@ -338,9 +337,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // View inner 的樣式：使用 flexbox 來垂直置中內容，並且加上適當的內距
   inner: { flex: 1, justifyContent: 'center', padding: 30 },
   // Text title 的樣式：較大的字體、加粗、深色、置中，以及底部的外距
-  title: { fontSize: 32, fontWeight: 'bold', color: colors.text, textAlign: 'center', marginBottom: 5 },
-  // Text subtitle 的樣式：中等字體、較淺的顏色、置中，以及底部的外距
-  subtitle: { fontSize: 16, color: colors.textMuted, textAlign: 'center', marginBottom: 40 },
+  title: { fontSize: 32, fontWeight: 'bold', color: colors.text, textAlign: 'center', marginTop: 40, marginBottom: 40 },
   inputGroup: { marginBottom: 20 },
   label: { fontSize: 14, color: colors.text, marginBottom: 8, fontWeight: '500' },
   input: {
