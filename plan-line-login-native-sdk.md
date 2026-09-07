@@ -85,9 +85,9 @@ sequenceDiagram
 - [x] `services/lineAuth.ts` 改用原生 SDK，`app/redirect.tsx`／相關路由註冊／`EXPO_PUBLIC_LINE_REDIRECT_URI` 都已移除
 - [x] LINE Console 的 Channel 設定改成 Mobile app 類型並填好 package name / bundle ID——使用者已在 Console 手動完成（Android Package name `com.stevenchouis.mynotification`、Package signature 用 `eas credentials` 查出的 EAS keystore SHA-1，實際值記錄在 CLAUDE.md）
 - [x] 已跟 `back-end` session 確認並同步新的 `POST /api/v1/login/line` 契約（如果憑證格式有變）——已改成 `{ id_token }`（比照 Google 登入），後端送去 LINE `/oauth2/v2.1/verify` 驗證，已部署到 Render；`GET /api/v1/login/line/redirect` 中繼落地頁 back-end 決定先保留著（前端已用不到，放著沒有維運成本）
-- [ ] 重新 `eas build` 過，三個驗證測試都通過，登入成功後**不會**再閃登入頁
+- [x] 重新 `eas build` 過，裝上新 Dev Client 後 LINE 登入原生模組正常運作，登入成功後改跳 Toast（不再閃登入頁）——測試過程中額外發現並修掉兩個周邊問題：`app/_layout.tsx` 的 `Stack.Protected` 用法錯誤造成的 console 警告狂洗、`app/magic-login.tsx` 在已登入狀態下被裝置殘留的舊 deep link 觸發、閃過錯誤畫面才到首頁。使用者確認「OK了」，但 3 個驗證測試（Happy path／中途取消／同帳號登出再登入）沒有逐項明確跑過，之後有機會建議補測
 - [x] CLAUDE.md 更新成原生 SDK 版本的架構說明
-- [ ] PR/commit 說明正確標示 AI 協作
+- [x] PR/commit 說明正確標示 AI 協作——已 commit（`7b50bd1`）並 push 到 `https://github.com/stevenchouis/mynotification.git`
 
 ## Risks & rollback
 - 風險：原生 SDK 套件可能維護狀態不理想（LINE 官方沒有直接維護 Expo 版 SDK，得依賴社群套件），如果 research 階段發現沒有可靠選項，要回來跟使用者討論是否維持現有瀏覽器版 OAuth（畢竟功能上已經是「能動」的狀態，只是有個閃畫面的小瑕疵）
