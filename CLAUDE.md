@@ -94,7 +94,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 - `app/magic-login.tsx` — Magic Link 的 deep link 落地畫面。後端信件連結會先落地在一個由後端提供的網頁（`GET /login/magic-link/redirect`），再轉跳到 `mynotification://magic-login?token=xxx`；Expo Router 依檔名自動把這個 scheme 導到這支檔案。用 `useLocalSearchParams()` 讀 `token`、呼叫 `POST /login/magic-link/verify` 換取 JWT，再呼叫 `completeLogin()`。用 `useRef` 防止同一個 token（單次使用）被重複驗證。
 
-- `app/coupon/[id].tsx` — 優惠券詳情/核銷頁，只在已登入時可達（於 `app/_layout.tsx` 的 `userToken` 分支註冊）。按「使用」呼叫 `POST /coupons/{id}/redeem-code` 產生 10 分鐘效期的 6 位數核銷碼並顯示 QR Code（`react-native-qrcode-svg`），下方「人工核銷」輸入框呼叫 `POST /coupons/redeem` 完成核銷 —— 這是暫代方案，因為目前沒有店員端核銷 App；`/coupons/redeem` 刻意不檢查優惠券擁有者（核銷碼本身就是授權憑證），這個權限模型上線前需要重新設計。畫面一開始就會用 `['myCoupons']` 快取判斷這張優惠券是否已使用/已過期，避免使用者透過連結跳進一張不能用的優惠券卻只看到「使用」按鈕。
+- `app/coupon/[id].tsx` — 優惠券詳情/核銷頁，只在已登入時可達（於 `app/_layout.tsx` 的 `userToken` 分支註冊）。按「使用」呼叫 `POST /coupons/{id}/redeem-code` 產生 10 分鐘效期的 6 位數核銷碼並顯示 QR Code（`react-native-qrcode-svg`），下方有「分享核銷連結給店員」按鈕（`Share.share()`，RN 內建、不需要額外套件），組出 `staffscanner://redeem?code=xxx` 這個 deep link 分享出去，給店員 App（`staff-scanner`，另一個 Claude Code session `staff` 負責）在 QR 掃描失敗時的備援手動核銷管道；`staffscanner://` 的 scheme/path 格式已跟 `staff` session 確認相容，這裡只能組字串代入 code，不可自行更動格式。原本這裡還有一個「人工核銷」輸入框讓顧客自己呼叫 `POST /coupons/redeem`（模擬還沒有店員 App 之前的核銷動作），2026-09-06 `back-end` 把這支端點的授權改成需要 `role=staff`（`get_current_staff_user` 依賴，`role=customer` 呼叫會直接 403），加上 `staff-scanner` 已經正式上線，這個過渡方案已經拿掉。畫面一開始就會用 `['myCoupons']` 快取判斷這張優惠券是否已使用/已過期，避免使用者透過連結跳進一張不能用的優惠券卻只看到「使用」按鈕。
 
 - `app/(drawer)/(tabs)/coupons.tsx` — 我的優惠券列表。有「待使用／已使用／已過期／全部」篩選標籤（各自顯示數量），排序規則是待使用優先、待使用內部依到期日由近到遠、已使用/已過期則是最新的排最前面。已使用/已過期超過 `HIDE_AFTER_DAYS`（目前 30 天，已使用用 `used_at`、已過期用 `expired_at` 當基準）會直接從列表濾掉，不占畫面版位。
 
@@ -161,8 +161,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | DELETE | `/api/v1/notifications/:id` | 刪除通知 |
 | GET | `/api/v1/coupons/me` | 取得目前使用者的優惠券列表 |
 | POST | `/api/v1/coupons/:id/redeem-code` | 產生一組 10 分鐘效期、單次使用的核銷碼（優惠券須屬於自己），回傳 `{ code, expires_at }` |
-| POST | `/api/v1/coupons/redeem` | 用核銷碼完成核銷，body `{ code }`；**不檢查優惠券擁有者**（核銷碼本身即授權憑證），這是店員 App 尚未存在前的暫代設計 |
-| POST | `/api/v1/coupons/admin/issue` | 管理者手動發券（活動加碼、客訴補償用），**不在 Swagger `/docs` 裡**，用 `X-Admin-Key` header 保護（密鑰存後端 `.env`，前端不會用到）。body `{ user_email, title, discount_amount(>0), valid_days(選填，預設 30) }`，回傳完整 Coupon 物件；用 Postman 手動觸發，前端目前沒有對應畫面 |
+| POST | `/api/v1/coupons/redeem` | 用核銷碼完成核銷，body `{ code }`。2026-09-06 起改為 `get_current_staff_user` 依賴，**需要 `role=staff`**，`role=customer`（一般會員）帳號呼叫會收到 `403 {"detail": "需要店員權限"}`——只有店員 App（`staff-scanner`）能呼叫，之前「顧客自己核銷」的暫代設計已隨此變更淘汰（見 `app/coupon/[id].tsx` 說明） |
+| POST | `/api/v1/coupons/admin/issue` | 管理者手動發券（活動加碼、客訴補償用），**不在 Swagger `/docs` 裡**。2026-09-06 起授權改為 `deps.verify_admin_or_staff`，**雙軌並存、擇一即可**：帶對的 `X-Admin-Key` header（密鑰存後端 `.env`，前端不會用到），**或**用 `role="staff"` 帳號的 `Authorization: Bearer <JWT>` 都能通過（`role=customer` 呼叫會 403，未帶任何認證會 401）——這是應 `staff` session 要求保留的雙軌設計（營運端仍想留 Postman + Admin Key 手動發券的管道，不想拔掉）。body `{ user_email, title, discount_amount(>0), valid_days(選填，預設 30) }`，回傳完整 Coupon 物件；`staff-scanner` 那邊之後可能會用店員 JWT 直接呼叫做成 App 內的補償券 UI，mynotification 這邊目前沒有對應畫面 |
 
 ### 表單驗證
 
