@@ -20,9 +20,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
 // 1. 匯入你的 AuthStore
 import { useAuthStore } from '../store/useAuthStore';
+import AppToast from '../components/AppToast';
 import FallbackSplash from '../components/FallbackSplash';
 import { Colors } from '../constants/Colors';
 import { useResolvedScheme } from '../hooks/useThemeColors';
@@ -162,6 +162,36 @@ export default function RootLayout() {
                   headerBackTitle: '返回'
                 }}
               />
+              {/* 商店商品詳情頁：從 (tabs)/shop.tsx 點擊商品卡片導航進來 */}
+              <Stack.Screen
+                name="shop/[id]"
+                options={{
+                  headerShown: true,
+                  title: '商品詳情',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              {/* 購物車頁：從 (tabs)/shop.tsx 的購物車按鈕導航進來 */}
+              <Stack.Screen
+                name="cart"
+                options={{
+                  headerShown: true,
+                  title: '購物車',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              {/* 訂單詳情頁：從 (tabs)/coupons.tsx 的「我的訂單」區段點擊項目導航進來 */}
+              <Stack.Screen
+                name="order/[id]"
+                options={{
+                  headerShown: true,
+                  title: '訂單詳情',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
             </Stack.Protected>
             <Stack.Protected guard={!userToken}>
               <Stack.Screen name="index" />
@@ -177,7 +207,9 @@ export default function RootLayout() {
               />
             </Stack.Protected>
           </Stack>
-          <Toast />
+          {/* 全站 Toast 統一顯示在下方（套件內建的 bottom 置中橫幅），不用每個 Toast.show() 呼叫
+              自己指定 position，這裡設一次全域生效；細節見 components/AppToast.tsx */}
+          <AppToast />
         </GestureHandlerRootView>
         </ThemeProvider>
       </QueryClientProvider>

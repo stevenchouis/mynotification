@@ -1,4 +1,4 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query'; // 1. 匯入 Query 工具
 import axios from 'axios';
 import * as Notifications from 'expo-notifications';
@@ -7,7 +7,9 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 
+import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useCartStore } from '../../../store/useCartStore';
 import { useFavoritesStore } from '../../../store/useFavoritesStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
 import { Notification } from '../../../types/notification';
@@ -16,12 +18,14 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function TabLayout() {
   const queryClient = useQueryClient();
+  const colors = useThemeColors();
   const { userToken } = useAuthStore();
   
   // 從 Store 只取出狀態和更新函式
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const setUnreadCount = useNotificationStore((state) => state.setUnreadCount);
   const favoriteCount = useFavoritesStore((state) => state.favoriteIds.length);
+  const cartCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
 
   // 2. 使用 useQuery 建立全域通知監聽
   const { data: notifications = [] } = useQuery<Notification[]>({
@@ -85,7 +89,14 @@ export default function TabLayout() {
 
   return (
     // headerShown: false — header 交給外層的 (drawer)/_layout.tsx 統一顯示（含選單按鈕）
-    <Tabs screenOptions={{ tabBarActiveTintColor: '#007AFF', headerShown: false }}>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: colors.tint,
+        tabBarInactiveTintColor: colors.textSubtle,
+        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
+        headerShown: false,
+      }}
+    >
       <Tabs.Screen
         name="home"
         options={{
@@ -94,12 +105,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="shop"
+        options={{
+          title: '商店',
+          tabBarIcon: ({ color }) => <Ionicons name="storefront" size={26} color={color} />,
+          tabBarBadge: cartCount > 0 ? cartCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.danger }
+        }}
+      />
+      <Tabs.Screen
         name="favorites"
         options={{
           title: '我的收藏',
           tabBarIcon: ({ color }) => <Ionicons name="heart" size={26} color={color} />,
           tabBarBadge: favoriteCount > 0 ? favoriteCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: '#FF3B30' }
+          tabBarBadgeStyle: { backgroundColor: colors.danger }
         }}
       />
       <Tabs.Screen
@@ -108,7 +128,7 @@ export default function TabLayout() {
           title: '通知',
           tabBarIcon: ({ color }) => <Ionicons name="notifications" size={28} color={color} />,
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: 'red' }
+          tabBarBadgeStyle: { backgroundColor: colors.danger }
         }}
       />
       <Tabs.Screen
@@ -119,14 +139,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="coupons" // 必須對應檔名 coupons.tsx
+        name="coupons" // 必須對應檔名 coupons.tsx（畫面內含「優惠券」／「我的訂單」兩個區段）
         options={{
-          title: '我的優惠券',
+          title: '我的',
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="card-giftcard" size={24} color={color} />
+            <Ionicons name="person-circle-outline" size={26} color={color} />
           ),
           // 如果你不想在底部 Tab Bar 看到它，可以設定：
-          // href: null, 
+          // href: null,
         }}
       />
     </Tabs>
