@@ -48,6 +48,17 @@ export default function DineInOrderDetailScreen() {
         <Text style={styles.metaText}>建立時間：{new Date(order.created_at).toLocaleString('zh-TW')}</Text>
       </View>
 
+      {(order.points_earned > 0 || order.points_used > 0) && (
+        <View style={styles.pointsCard}>
+          {order.points_used > 0 && (
+            <Text style={styles.pointsText}>本筆折抵 {order.points_used} 點</Text>
+          )}
+          {order.points_earned > 0 && (
+            <Text style={styles.pointsText}>本筆賺得 {order.points_earned} 點</Text>
+          )}
+        </View>
+      )}
+
       <Text style={styles.sectionTitle}>品項明細</Text>
       {order.items.map((item) => (
         <View key={item.menu_item_id} style={styles.itemRow}>
@@ -71,6 +82,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   statusText: { fontSize: 14, color: colors.tint, fontWeight: '600' },
   totalAmount: { fontSize: 28, fontWeight: '900', color: colors.text, marginTop: 6 },
   metaText: { fontSize: 12, color: colors.textSubtle, marginTop: 6 },
+
+  pointsCard: { backgroundColor: colors.highlight, borderRadius: 12, padding: 16, marginBottom: 24 },
+  pointsText: { fontSize: 13, color: colors.text, fontWeight: '500' },
 
   sectionTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginBottom: 12 },
   itemRow: {

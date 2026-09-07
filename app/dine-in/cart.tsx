@@ -2,15 +2,17 @@
 // 堂食點餐流程第三步：本次點餐清單，調整數量／移除、送出訂單（POST /api/v1/dine-in-orders）。
 // 比照 app/cart.tsx（網購商店購物車）的結構，但資料源是 useDineInOrderStore，送出成功後清空。
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Text from '../../components/Text';
 import { ThemeColors } from '../../constants/Colors';
+import { MAX_REDEEM_RATIO, POINTS_TO_CURRENCY_RATE } from '../../constants/loyalty';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import { fetchLoyaltyBalance } from '../../services/loyalty';
 import { submitDineInOrder } from '../../services/dineIn';
 import { DineInCartItem, useDineInOrderStore } from '../../store/useDineInOrderStore';
 
@@ -28,22 +30,45 @@ export default function DineInCartScreen() {
   const clear = useDineInOrderStore((state) => state.clear);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pointsInput, setPointsInput] = useState('');
 
   const estimatedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const { data: pointsBalance } = useQuery({
+    queryKey: ['loyalty-balance'],
+    queryFn: fetchLoyaltyBalance,
+  });
+
+  // 比照 app/cart.tsx 的即時試算：不能超過餘額，也不能超過訂單金額 50%（無條件捨去）
+  const maxRedeemablePoints = Math.max(
+    0,
+    Math.min(pointsBalance ?? 0, Math.floor((estimatedTotal * MAX_REDEEM_RATIO) / POINTS_TO_CURRENCY_RATE))
+  );
+  const pointsToUse = Math.min(Number(pointsInput) || 0, maxRedeemablePoints);
+  const discountedTotal = Math.max(0, estimatedTotal - pointsToUse * POINTS_TO_CURRENCY_RATE);
 
   const onSubmit = async () => {
     if (items.length === 0) {
       Alert.alert('提示', '請先加入品項再送出點餐');
       return;
     }
+    const requestedPoints = Number(pointsInput) || 0;
+    if (requestedPoints > maxRedeemablePoints) {
+      Alert.alert('點數超過上限', `最多可折抵 ${maxRedeemablePoints} 點（受餘額與訂單金額 50% 上限限制）`);
+      return;
+    }
     setIsSubmitting(true);
     try {
       const order = await submitDineInOrder(
         tableNumber,
-        items.map((item) => ({ menu_item_id: item.menuItemId, quantity: item.quantity }))
+        items.map((item) => ({ menu_item_id: item.menuItemId, quantity: item.quantity })),
+        pointsToUse > 0 ? pointsToUse : undefined
       );
       clear();
+      setPointsInput('');
       queryClient.invalidateQueries({ queryKey: ['my-dine-in-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
       router.replace({
         pathname: '/dine-in/confirm',
         params: { orderId: String(order.id), tableNumber: order.table_number },
@@ -51,7 +76,11 @@ export default function DineInCartScreen() {
     } catch (error: any) {
       const status = error.response?.status;
       const detail = error.response?.data?.detail;
-      if (status === 422) {
+      if (detail && typeof detail === 'object' && detail.error_code === 'insufficient_points') {
+        Alert.alert('點數不足', detail.message || '點數餘額不足，請調整折抵點數');
+      } else if (detail && typeof detail === 'object' && detail.error_code === 'points_cap_exceeded') {
+        Alert.alert('超過折抵上限', detail.message || '折抵點數超過訂單金額 50% 上限');
+      } else if (status === 422) {
         Alert.alert('資料格式錯誤', detail || '點餐內容有誤，請重新確認');
       } else {
         Alert.alert('錯誤', detail || '送出點餐失敗，請稍後再試');
@@ -120,9 +149,27 @@ export default function DineInCartScreen() {
 
       {/* 比照 app/cart.tsx 的做法，額外加緩衝避免 Android edge-to-edge 系統導覽列蓋住按鈕 */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 32 }]}>
+        {maxRedeemablePoints > 0 && (
+          <View style={styles.pointsRow}>
+            <Text style={styles.pointsLabel}>使用點數折抵（可用 {maxRedeemablePoints} 點）</Text>
+            <View style={styles.pointsInputRow}>
+              <TextInput
+                style={styles.pointsInput}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={colors.textSubtle}
+                value={pointsInput}
+                onChangeText={setPointsInput}
+              />
+              <Pressable style={styles.useAllButton} onPress={() => setPointsInput(String(maxRedeemablePoints))}>
+                <Text style={styles.useAllButtonText}>全部使用</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>預估小計</Text>
-          <Text style={styles.totalValue}>${estimatedTotal.toFixed(2)}</Text>
+          <Text style={styles.totalLabel}>{pointsToUse > 0 ? '折抵後金額' : '預估小計'}</Text>
+          <Text style={styles.totalValue}>${discountedTotal.toFixed(2)}</Text>
         </View>
         <Text style={styles.totalHint}>僅供參考，實際金額以現場結帳為準</Text>
         <Pressable
@@ -170,6 +217,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background,
     padding: 16, paddingBottom: 24,
   },
+  pointsRow: { marginBottom: 12 },
+  pointsLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 6 },
+  pointsInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pointsInput: {
+    flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  useAllButton: {
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.tint,
+  },
+  useAllButtonText: { color: colors.tint, fontSize: 13, fontWeight: '600' },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   totalLabel: { fontSize: 14, color: colors.textMuted },
   totalValue: { fontSize: 22, fontWeight: '700', color: colors.text },

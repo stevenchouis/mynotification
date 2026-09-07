@@ -12,9 +12,14 @@ export async function fetchMenu(): Promise<MenuItem[]> {
 
 export async function submitDineInOrder(
   tableNumber: string,
-  items: { menu_item_id: number; quantity: number }[]
+  items: { menu_item_id: number; quantity: number }[],
+  usePoints?: number
 ): Promise<DineInOrder> {
-  const res = await api.post('/api/v1/dine-in-orders', { table_number: tableNumber, items });
+  const res = await api.post('/api/v1/dine-in-orders', {
+    table_number: tableNumber,
+    items,
+    ...(usePoints ? { use_points: usePoints } : {}),
+  });
   return res.data;
 }
 

@@ -19,12 +19,14 @@ export interface DineInOrderItem {
   subtotal: number;
 }
 
-export type DineInOrderStatus = 'pending';
+export type DineInOrderStatus = 'pending' | 'completed';
 
-// 訂單狀態顯示文字，比照 types/shop.ts 的 ORDER_STATUS_LABEL 寫法。目前後端只會回傳
-// 'pending'（送出後現場結帳、備餐狀態由店員口頭/現場掌握，App 端不做即時狀態追蹤）
+// 訂單狀態顯示文字，比照 types/shop.ts 的 ORDER_STATUS_LABEL 寫法。'completed' 是店員 App
+// 透過 PATCH /dine-in-orders/{id}/status 標記的狀態，顧客端查詢自己的點餐紀錄時可能會讀到，
+// 也是紅利點數「消費賺點數」在堂食路徑的觸發點（見 plan-loyalty-points.md）
 export const DINE_IN_ORDER_STATUS_LABEL: Record<DineInOrderStatus, string> = {
   pending: '處理中（等待店家確認）',
+  completed: '已完成',
 };
 
 export interface DineInOrder {
@@ -34,4 +36,6 @@ export interface DineInOrder {
   items: DineInOrderItem[];
   total_amount: number;
   created_at: string;
+  points_earned: number;
+  points_used: number;
 }

@@ -14,8 +14,14 @@ export async function fetchShopProductById(id: number): Promise<ShopProduct> {
   return res.data;
 }
 
-export async function createOrder(items: { product_id: number; quantity: number }[]): Promise<Order> {
-  const res = await api.post('/api/v1/orders', { items });
+export async function createOrder(
+  items: { product_id: number; quantity: number }[],
+  usePoints?: number
+): Promise<Order> {
+  const res = await api.post('/api/v1/orders', {
+    items,
+    ...(usePoints ? { use_points: usePoints } : {}),
+  });
   return res.data;
 }
 

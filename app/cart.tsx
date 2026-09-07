@@ -2,16 +2,18 @@
 // 購物車頁：調整數量／移除品項，送出訂單（POST /api/v1/orders）。這裡顯示的小計只是
 // 「加入購物車當下的價格快照 × 數量」，僅供參考，實際金額以後端回應為準（見 plan.md 的 Constraints）。
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Text from '../components/Text';
 import { ThemeColors } from '../constants/Colors';
+import { MAX_REDEEM_RATIO, POINTS_TO_CURRENCY_RATE } from '../constants/loyalty';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { fetchLoyaltyBalance } from '../services/loyalty';
 import { createOrder } from '../services/shop';
 import { CartItem, useCartStore } from '../store/useCartStore';
 
@@ -28,19 +30,45 @@ export default function CartScreen() {
   const clear = useCartStore((state) => state.clear);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pointsInput, setPointsInput] = useState('');
 
   const estimatedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const { data: pointsBalance } = useQuery({
+    queryKey: ['loyalty-balance'],
+    queryFn: fetchLoyaltyBalance,
+  });
+
+  // 前端即時試算的折抵上限：不能超過餘額，也不能超過訂單金額 50%（無條件捨去）；
+  // 實際折抵金額仍以後端回應為準，這裡只是送出前先擋一次，避免使用者填了才被 422/409 打回
+  const maxRedeemablePoints = Math.max(
+    0,
+    Math.min(pointsBalance ?? 0, Math.floor((estimatedTotal * MAX_REDEEM_RATIO) / POINTS_TO_CURRENCY_RATE))
+  );
+  const pointsToUse = Math.min(Number(pointsInput) || 0, maxRedeemablePoints);
+  const discountedTotal = Math.max(0, estimatedTotal - pointsToUse * POINTS_TO_CURRENCY_RATE);
 
   const onCheckout = async () => {
     if (items.length === 0) {
       Alert.alert('提示', '購物車是空的，先去商店逛逛吧');
       return;
     }
+    const requestedPoints = Number(pointsInput) || 0;
+    if (requestedPoints > maxRedeemablePoints) {
+      Alert.alert('點數超過上限', `最多可折抵 ${maxRedeemablePoints} 點（受餘額與訂單金額 50% 上限限制）`);
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const order = await createOrder(items.map((item) => ({ product_id: item.productId, quantity: item.quantity })));
+      const order = await createOrder(
+        items.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+        pointsToUse > 0 ? pointsToUse : undefined
+      );
       clear();
+      setPointsInput('');
       queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
       Alert.alert(
         '訂單已送出',
         `訂單狀態：處理中（尚未完成付款）\n訂單編號：${order.merchant_trade_no}`,
@@ -49,7 +77,11 @@ export default function CartScreen() {
     } catch (error: any) {
       const status = error.response?.status;
       const detail = error.response?.data?.detail;
-      if (status === 409) {
+      if (detail && typeof detail === 'object' && detail.error_code === 'insufficient_points') {
+        Alert.alert('點數不足', detail.message || '點數餘額不足，請調整折抵點數');
+      } else if (detail && typeof detail === 'object' && detail.error_code === 'points_cap_exceeded') {
+        Alert.alert('超過折抵上限', detail.message || '折抵點數超過訂單金額 50% 上限');
+      } else if (status === 409) {
         Alert.alert('庫存不足', detail || '部分商品庫存不足，請調整購物車後再試');
       } else if (status === 422) {
         Alert.alert('資料格式錯誤', detail || '購物車內容有誤，請重新確認');
@@ -116,9 +148,27 @@ export default function CartScreen() {
           按鈕若貼著螢幕最下緣會被蓋住、容易誤觸；除了 insets.bottom 本身，再加一段固定緩衝
           （32）確保視覺上跟系統列有明顯間距，不會看起來還是貼在一起 */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 32 }]}>
+        {maxRedeemablePoints > 0 && (
+          <View style={styles.pointsRow}>
+            <Text style={styles.pointsLabel}>使用點數折抵（可用 {maxRedeemablePoints} 點）</Text>
+            <View style={styles.pointsInputRow}>
+              <TextInput
+                style={styles.pointsInput}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={colors.textSubtle}
+                value={pointsInput}
+                onChangeText={setPointsInput}
+              />
+              <Pressable style={styles.useAllButton} onPress={() => setPointsInput(String(maxRedeemablePoints))}>
+                <Text style={styles.useAllButtonText}>全部使用</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>預估小計</Text>
-          <Text style={styles.totalValue}>${estimatedTotal.toFixed(2)}</Text>
+          <Text style={styles.totalLabel}>{pointsToUse > 0 ? '折抵後金額' : '預估小計'}</Text>
+          <Text style={styles.totalValue}>${discountedTotal.toFixed(2)}</Text>
         </View>
         <Text style={styles.totalHint}>僅供參考，實際金額以送出結果為準</Text>
         <Pressable
@@ -160,6 +210,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background,
     padding: 16, paddingBottom: 24,
   },
+  pointsRow: { marginBottom: 12 },
+  pointsLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 6 },
+  pointsInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pointsInput: {
+    flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  useAllButton: {
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.tint,
+  },
+  useAllButtonText: { color: colors.tint, fontSize: 13, fontWeight: '600' },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   totalLabel: { fontSize: 14, color: colors.textMuted },
   totalValue: { fontSize: 22, fontWeight: '700', color: colors.text },

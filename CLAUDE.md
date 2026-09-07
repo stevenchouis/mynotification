@@ -51,7 +51,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 - **Drawer 專屬頁的返回箭頭（`app/(drawer)/_layout.tsx` 的 `HeaderBackButton`）** — `about`/`faq`/`privacy` 是跟 `(tabs)` 同層的 Drawer 畫面（不是 `(tabs)` 的子畫面），底部 Tab Bar 是 `(tabs)` 巢狀導覽自己畫的，離開 `(tabs)` 進到這三頁後 Tab Bar 結構上就不會顯示；這是刻意接受的設計（改動小、風險低），不打算為了保留 Tab Bar 把這三頁重構進 `(tabs)` 底下。但 Drawer 預設 header 左上角只有選單漢堡按鈕、沒有返回箭頭，不管是從首頁功能 Grid 用 `router.push` 進來、還是從 Drawer 選單點進來都會卡住回不去，所以這三頁的 `headerLeft` 改用 `HeaderBackButton`（`navigation.canGoBack() ? navigation.goBack() : navigation.navigate('(tabs)')`）取代漢堡按鈕。`(tabs)` 底下的 5 個分頁（我的收藏／通知／設定／我的優惠券）維持原本的漢堡選單 + Tab Bar，不需要返回箭頭——這是正常的 Tab 行為，直接點首頁分頁就能回去，跟直接點底部分頁列效果一樣。
 
-- **首頁功能 Grid 與小型活動輪播（`app/(drawer)/(tabs)/home.tsx`）** — 首頁「歡迎回來」下方依序是：小型活動輪播（`PromoCarousel`）→ 4x2 功能 Grid（`QuickActionsGrid`）→ 大輪播（4 張橫幅）→ 跑馬燈 → 商品分類標籤。`QuickActionsGrid` 的 8 個入口（`QUICK_ACTIONS` 常數）全部對應 App 內既有畫面，用 `router.push('/xxx')` 導航（不含路由群組前綴，比照 `settings.tsx` 既有寫法），最後一個「全部服務」比較特殊，是用 `useNavigation()` + `DrawerActions.openDrawer()`（`@react-navigation/native`）開啟 Drawer 選單，不是 `router.push`；通知入口的紅點數字直接讀 `useNotificationStore` 的 `unreadCount`，跟 Tab Bar 徽章同一份即時資料，不是另外造的假資料。`PromoCarousel`（`PROMO_COPY` 常數）文案是純前端假資料，圖片則比照大輪播抓 DummyJSON 商品照片（`fetchPromoImages`，用 `skip` 參數跟大輪播的 `fetchBannerImages` 錯開，避免抓到重複圖片）；純文案的假資料之後若要改成後端可控（不用出 App 版本就能換活動內容），可以參考 `plan.md`（如果還在）或跟 `back-end` session 討論一張通用的 banner/promotion 表（`title`／`link_target`／`sort_order`／`start_at`／`end_at`／`is_active` 等欄位）。
+- **首頁功能 Grid 與小型活動輪播（`app/(drawer)/(tabs)/home.tsx`）** — 首頁「歡迎回來」下方依序是：小型活動輪播（`PromoCarousel`）→ 3x3 功能 Grid（`QuickActionsGrid`）→ 大輪播（4 張橫幅）→ 跑馬燈 → 商品分類標籤。`QuickActionsGrid` 的 9 個入口（`QUICK_ACTIONS` 常數）全部對應 App 內既有畫面，用 `router.push('/xxx')` 導航（不含路由群組前綴，比照 `settings.tsx` 既有寫法），最後一個「全部服務」比較特殊，是用 `useNavigation()` + `DrawerActions.openDrawer()`（`@react-navigation/native`）開啟 Drawer 選單，不是 `router.push`；通知入口的紅點數字直接讀 `useNotificationStore` 的 `unreadCount`，跟 Tab Bar 徽章同一份即時資料，不是另外造的假資料。原本是 4x2（8 個入口），新增「紅利點數」後改成 3x3（9 個入口），`quickAction` 的 `width` 也從 `25%` 改成 `33.33%`。`PromoCarousel`（`PROMO_COPY` 常數）文案是純前端假資料，圖片則比照大輪播抓 DummyJSON 商品照片（`fetchPromoImages`，用 `skip` 參數跟大輪播的 `fetchBannerImages` 錯開，避免抓到重複圖片）；純文案的假資料之後若要改成後端可控（不用出 App 版本就能換活動內容），可以參考 `plan.md`（如果還在）或跟 `back-end` session 討論一張通用的 banner/promotion 表（`title`／`link_target`／`sort_order`／`start_at`／`end_at`／`is_active` 等欄位）。
 
 ### 主題系統（Theme／深色模式）
 
@@ -121,6 +121,17 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 - `app/(drawer)/(tabs)/favorites.tsx` — 我的收藏。用 `useQueries`（TanStack Query）依 `useFavoritesStore` 存的商品 id 陣列，各自打 `GET /products/{id}` 抓詳細資料再排成跟首頁一樣的 3 欄 Grid。
 
+### 紅利點數（Loyalty Points）
+
+完整規劃見 `plan-loyalty-points.md`。消費 NT$100 得 1 點（無條件捨去）、1 點折抵 NT$1、單筆訂單最高折抵訂單金額 50%、點數自入帳日起 1 年後過期——這幾個比例是跟 `back-end` 定案的常數，寫死在雙邊程式碼裡（非後台可調），前端定義在 `constants/loyalty.ts`（`POINTS_TO_CURRENCY_RATE`、`MAX_REDEEM_RATIO`）。
+
+- **`app/points.tsx`** — 「紅利點數」畫面，比照 `app/coupon/[id].tsx` 掛在 `app/_layout.tsx` 的 `userToken` 分支下（獨立 Stack.Screen，非 Tab）。上方顯示 `GET /loyalty/me` 的餘額，下方是 `GET /loyalty/transactions` 的收支明細列表，4 種交易類型（`earn`／`redeem`／`expire`／`reverse`）各自有固定的圖示、語意色與正負號（`app/points.tsx` 的 `TX_DISPLAY` 常數）。入口在 `settings.tsx` 的「帳號管理」區塊（顯示目前餘額）與首頁 `QUICK_ACTIONS`。
+- **`reverse` 類型的方向假設**（尚未逐字跟 `back-end` 確認）：訂單取消時「收回已賺點數」記成 `expire`（配合 `reason` 文字說明是取消而非自然到期），`reverse` 只用於退還已折抵的點數（固定正向）。這個假設只影響 `app/points.tsx` 明細列表的圖示/正負號呈現，不影響其他邏輯；如果之後發現方向不同，只需要調整 `TX_DISPLAY`。
+- **結帳頁折抵（`app/cart.tsx`、`app/dine-in/cart.tsx`）** — 「使用點數折抵」用一個數字輸入框 + 「全部使用」按鈕（沒有另外裝滑桿套件），可折抵上限 = `min(目前點數餘額, floor(訂單金額 × MAX_REDEEM_RATIO))`，前端只做送出前的即時試算擋一次，實際折抵金額仍以後端回應為準。送出訂單時把折抵點數帶進 `use_points` 欄位（`services/shop.ts` 的 `createOrder`、`services/dineIn.ts` 的 `submitDineInOrder` 新增可選參數），成功後除了既有的 `['my-orders']`/`['my-dine-in-orders']`，也要 `invalidateQueries(['loyalty-balance'])` 與 `['loyalty-transactions'])`，不然使用者回到「紅利點數」畫面會看到舊餘額。
+- **錯誤分流（已跟 `back-end` 對過規格，2026-09-07）** — `POST /orders`／`POST /dine-in-orders` 的既有庫存不足錯誤維持不變（`409`，`detail` 是純文字字串）；新增的兩種點數錯誤刻意避開 422（FastAPI 驗證失敗的 422 `detail` 是陣列，形狀不同，會跟手動 `raise HTTPException` 的 `detail` 混淆），改用「`detail` 是物件」來分辨：點數餘額不足是 `409 { error_code: "insufficient_points", message }`、超過 50% 折抵上限是 `400 { error_code: "points_cap_exceeded", message }`。前端判斷順序是先檢查 `detail` 是否為帶 `error_code` 的物件（點數錯誤），才落到既有的「純文字 `detail` + status code」分流（庫存不足／格式錯誤），不用文字比對，一律用 `error_code` 精確判斷。
+- **網購路徑「消費賺點數」尚未真正上線** — 要等 `Order.status` 變成 `paid`（ECPay 尚未串接，永遠停在 `pending`，見 `plan.md`），這塊只是前端邏輯先寫好、掛勾在既有的 `paid` 狀態轉換上；`app/order/[id].tsx` 的「本筆訂單賺到/折抵了多少點數」區塊用 `points_earned > 0 || points_used > 0` 才顯示，`pending` 訂單的 `points_earned` 會是 0，不會誤導使用者以為網購結帳當下就賺到點數。堂食路徑（`DineInOrder.status → completed`，店員 App 觸發）沒有這個限制，可以直接測試。
+- **`types/dineIn.ts` 補上的技術債** — `DineInOrderStatus` 原本只有 `'pending'`，但後端 `PATCH /dine-in-orders/{id}/status`（店員 App 專用）早就能把訂單標成 `'completed'`，這次順便補上 `'completed'` 值與「已完成」標籤，不然顧客端點餐紀錄遇到已完成訂單會顯示空白狀態文字。
+
 ### 狀態管理模式
 
 三個職責嚴格分離的 store：
@@ -163,6 +174,9 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | POST | `/api/v1/coupons/:id/redeem-code` | 產生一組 10 分鐘效期、單次使用的核銷碼（優惠券須屬於自己），回傳 `{ code, expires_at }` |
 | POST | `/api/v1/coupons/redeem` | 用核銷碼完成核銷，body `{ code }`。2026-09-06 起改為 `get_current_staff_user` 依賴，**需要 `role=staff`**，`role=customer`（一般會員）帳號呼叫會收到 `403 {"detail": "需要店員權限"}`——只有店員 App（`staff-scanner`）能呼叫，之前「顧客自己核銷」的暫代設計已隨此變更淘汰（見 `app/coupon/[id].tsx` 說明） |
 | POST | `/api/v1/coupons/admin/issue` | 管理者手動發券（活動加碼、客訴補償用），**不在 Swagger `/docs` 裡**。2026-09-06 起授權改為 `deps.verify_admin_or_staff`，**雙軌並存、擇一即可**：帶對的 `X-Admin-Key` header（密鑰存後端 `.env`，前端不會用到），**或**用 `role="staff"` 帳號的 `Authorization: Bearer <JWT>` 都能通過（`role=customer` 呼叫會 403，未帶任何認證會 401）——這是應 `staff` session 要求保留的雙軌設計（營運端仍想留 Postman + Admin Key 手動發券的管道，不想拔掉）。body `{ user_email, title, discount_amount(>0), valid_days(選填，預設 30) }`，回傳完整 Coupon 物件；`staff-scanner` 那邊之後可能會用店員 JWT 直接呼叫做成 App 內的補償券 UI，mynotification 這邊目前沒有對應畫面 |
+| GET | `/api/v1/loyalty/me` | 取得目前使用者的紅利點數餘額，回傳 `{ balance }` |
+| GET | `/api/v1/loyalty/transactions` | 取得目前使用者的點數收支明細，新到舊，見「紅利點數」章節 |
+| POST | `/api/v1/orders`、`/api/v1/dine-in-orders` | body 新增可選欄位 `use_points`；點數餘額不足回 `409 { error_code: "insufficient_points" }`，超過 50% 折抵上限回 `400 { error_code: "points_cap_exceeded" }`，跟既有庫存不足的 `409`（`detail` 純文字）分開判斷，見「紅利點數」章節 |
 
 ### 表單驗證
 

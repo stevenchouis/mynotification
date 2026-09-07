@@ -11,6 +11,7 @@ import { Image } from 'expo-image';
 import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
 import { useThemeColors } from '../../../hooks/useThemeColors';
+import { fetchLoyaltyBalance } from '../../../services/loyalty';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
 import { ThemeMode, useThemeModeStore } from '../../../store/useThemeModeStore';
@@ -42,6 +43,12 @@ export default function SettingsScreen() {
   const setThemeMode = useThemeModeStore((state) => state.setMode);
 
   const [isUploading, setIsUploading] = useState(false);
+
+  const { data: loyaltyBalance } = useQuery({
+    queryKey: ['loyalty-balance'],
+    queryFn: fetchLoyaltyBalance,
+    enabled: !!userToken,
+  });
 
   // 2. 抓取使用者資料 (Server State)
   const { data: user, isLoading } = useQuery({
@@ -233,9 +240,19 @@ const uploadToSupabase = async (uri: string) => {
           </View>
         </Pressable>
         <Pressable
+          onPress={() => router.push('/points')}
+          style={[styles.menuItem, { marginTop: 10 }]}
+        >
+          <Text style={styles.menuItemText}>紅利點數</Text>
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>{loyaltyBalance ?? 0} 點</Text>
+          </View>
+        </Pressable>
+        <Pressable
           onPress={handleLogout}
           style={({ pressed }) => [
             styles.logoutButton,
+            { marginTop: 10 },
             pressed && styles.logoutButtonPressed
           ]}
         >

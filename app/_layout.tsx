@@ -152,6 +152,16 @@ export default function RootLayout() {
                   headerBackTitle: '返回'
                 }}
               />
+              {/* 紅利點數畫面：從 settings.tsx 的「帳號管理」入口或首頁功能 Grid 導航進來 */}
+              <Stack.Screen
+                name="points"
+                options={{
+                  headerShown: true,
+                  title: '紅利點數',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
               {/* 商品搜尋頁：從首頁搜尋列導航進來 */}
               <Stack.Screen
                 name="search"

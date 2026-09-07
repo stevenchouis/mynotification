@@ -37,4 +37,6 @@ export interface Order {
   created_at: string;
   paid_at: string | null;
   items: OrderItem[];
+  points_earned: number;
+  points_used: number;
 }

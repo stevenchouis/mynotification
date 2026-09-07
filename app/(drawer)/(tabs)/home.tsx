@@ -75,13 +75,14 @@ interface QuickAction {
   id: string;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route?: '/coupons' | '/favorites' | '/inbox' | '/settings' | '/faq' | '/about' | '/privacy';
+  route?: '/coupons' | '/favorites' | '/inbox' | '/settings' | '/faq' | '/about' | '/privacy' | '/points';
   isDrawerToggle?: boolean;
 }
 
-// 4x2 功能捷徑：全部對應 App 內既有畫面，不是假連結
+// 3x3 功能捷徑：全部對應 App 內既有畫面，不是假連結
 const QUICK_ACTIONS: QuickAction[] = [
   { id: 'coupons', label: '我的', icon: 'pricetag-outline', route: '/coupons' },
+  { id: 'points', label: '紅利點數', icon: 'star-outline', route: '/points' },
   { id: 'favorites', label: '我的收藏', icon: 'heart-outline', route: '/favorites' },
   { id: 'inbox', label: '通知中心', icon: 'notifications-outline', route: '/inbox' },
   { id: 'settings', label: '帳號設定', icon: 'settings-outline', route: '/settings' },
@@ -174,7 +175,7 @@ function HomeSearchBar() {
   );
 }
 
-// 4x2 功能 Grid：8 個入口對應 App 內既有畫面，通知入口的紅點讀 useNotificationStore 的即時未讀數
+// 3x3 功能 Grid：9 個入口對應 App 內既有畫面，通知入口的紅點讀 useNotificationStore 的即時未讀數
 function QuickActionsGrid() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -537,7 +538,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   dotActive: { backgroundColor: colors.accent, width: 16 },
 
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 20 },
-  quickAction: { width: '25%', alignItems: 'center', marginBottom: 16 },
+  quickAction: { width: '33.33%', alignItems: 'center', marginBottom: 16 },
   quickIconCircle: {
     width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center'
