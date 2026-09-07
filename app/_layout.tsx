@@ -6,6 +6,12 @@ import {
   NotoSansTC_900Black,
   useFonts,
 } from '@expo-google-fonts/noto-sans-tc';
+import {
+  DarkTheme as NavDarkTheme,
+  DefaultTheme as NavDefaultTheme,
+  Theme as NavTheme,
+  ThemeProvider,
+} from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
@@ -16,6 +22,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 // 1. 匯入你的 AuthStore
 import { useAuthStore } from '../store/useAuthStore';
+import { Colors } from '../constants/Colors';
+import { useResolvedScheme } from '../hooks/useThemeColors';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,8 +34,37 @@ const queryClient = new QueryClient({
   },
 });
 
+// React Navigation 的 Theme 物件，控制 Stack/Drawer/Tabs 原生 header、卡片背景這些「導覽層級」
+// 的顏色（畫面內容本身的顏色由各畫面自己透過 useThemeColors() 取用 constants/Colors.ts）。
+// 用我們的 MUJI 色票蓋掉 React Navigation 預設的藍白配色。
+const lightNavTheme: NavTheme = {
+  ...NavDefaultTheme,
+  colors: {
+    ...NavDefaultTheme.colors,
+    primary: Colors.light.tint,
+    background: Colors.light.background,
+    card: Colors.light.background,
+    text: Colors.light.text,
+    border: Colors.light.border,
+    notification: Colors.light.danger,
+  },
+};
+const darkNavTheme: NavTheme = {
+  ...NavDarkTheme,
+  colors: {
+    ...NavDarkTheme.colors,
+    primary: Colors.dark.tint,
+    background: Colors.dark.background,
+    card: Colors.dark.background,
+    text: Colors.dark.text,
+    border: Colors.dark.border,
+    notification: Colors.dark.danger,
+  },
+};
+
 export default function RootLayout() {
   const router = useRouter();
+  const scheme = useResolvedScheme();
 
   // 全域繁中字型（Noto Sans TC），載入完成前先不渲染畫面，避免先閃過系統預設字型
   const [fontsLoaded] = useFonts({
@@ -69,10 +106,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={scheme === 'dark' ? darkNavTheme : lightNavTheme}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          {/* 全域套用深色狀態列圖示：App 版面是白底/淺色的 MUJI 風格，Android edge-to-edge 下
-              若不明確指定，系統狀態列圖示可能選到淺色而疊在白底上變成看不見（時間、電量、訊號等消失） */}
-          <StatusBar style="dark" />
+          {/* 狀態列圖示顏色跟著系統深色/淺色模式切換：淺色底用深色圖示、深色底用淺色圖示，
+              確保 Android edge-to-edge 下時間/電量/訊號等系統圖示不會跟背景同色而看不見 */}
+          <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
           {/* 注意：Stack 的每個直接子元素都必須是 Stack.Screen 本身，不能用 <>...</> Fragment
               把好幾個 Stack.Screen 包起來再塞進三元運算式——Expo Router 檢查子元素時不會穿透 Fragment，
               整包會被判定為「不是 Screen」而整個忽略（畫面仍會因為檔案式路由自動可達，但這裡設定的
@@ -124,6 +162,7 @@ export default function RootLayout() {
           </Stack>
           <Toast />
         </GestureHandlerRootView>
+        </ThemeProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

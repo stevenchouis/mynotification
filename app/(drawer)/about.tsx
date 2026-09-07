@@ -1,17 +1,22 @@
 // app/(drawer)/about.tsx
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import Text from '../../components/Text';
+import { ThemeColors } from '../../constants/Colors';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 export default function AboutScreen() {
   const version = Constants.expoConfig?.version ?? '1.0.0';
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.iconWrapper}>
-        <Ionicons name="notifications" size={40} color="#fff" />
+        <Ionicons name="notifications" size={40} color={colors.onTint} />
       </View>
 
       <Text style={styles.appName}>mynotification</Text>
@@ -37,17 +42,17 @@ export default function AboutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 24, alignItems: 'center', backgroundColor: '#fff' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { padding: 24, alignItems: 'center', backgroundColor: colors.background },
   iconWrapper: {
-    width: 72, height: 72, borderRadius: 20, backgroundColor: '#A69B8D',
+    width: 72, height: 72, borderRadius: 20, backgroundColor: colors.tint,
     justifyContent: 'center', alignItems: 'center', marginBottom: 16
   },
-  appName: { fontSize: 22, fontWeight: '700', color: '#333333' },
-  version: { fontSize: 13, color: '#8A8377', marginTop: 4, marginBottom: 20 },
-  paragraph: { fontSize: 14, color: '#5C5449', lineHeight: 22, textAlign: 'left', alignSelf: 'stretch' },
-  divider: { height: 1, backgroundColor: '#F0EEE9', alignSelf: 'stretch', marginVertical: 20 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#333333', alignSelf: 'flex-start', marginBottom: 10 },
-  listItem: { fontSize: 14, color: '#5C5449', alignSelf: 'flex-start', marginBottom: 6, lineHeight: 20 },
-  footer: { fontSize: 12, color: '#B0AA9C' },
+  appName: { fontSize: 22, fontWeight: '700', color: colors.text },
+  version: { fontSize: 13, color: colors.textMuted, marginTop: 4, marginBottom: 20 },
+  paragraph: { fontSize: 14, color: colors.textMuted, lineHeight: 22, textAlign: 'left', alignSelf: 'stretch' },
+  divider: { height: 1, backgroundColor: colors.border, alignSelf: 'stretch', marginVertical: 20 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: colors.text, alignSelf: 'flex-start', marginBottom: 10 },
+  listItem: { fontSize: 14, color: colors.textMuted, alignSelf: 'flex-start', marginBottom: 6, lineHeight: 20 },
+  footer: { fontSize: 12, color: colors.textSubtle },
 });

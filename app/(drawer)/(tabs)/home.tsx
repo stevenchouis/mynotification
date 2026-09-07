@@ -8,9 +8,9 @@ import { FlashList } from '@shopify/flash-list';
 import { DrawerActions } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, View
+  ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, View
 } from 'react-native';
 import Animated, {
   Easing,
@@ -20,8 +20,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Carousel } from 'react-native-reanimated-carousel';
+import { Image } from 'expo-image';
 
 import Text from '../../../components/Text';
+import { ThemeColors } from '../../../constants/Colors';
+import { useThemeColors } from '../../../hooks/useThemeColors';
 import {
   ALL_CATEGORY, fetchCategories, fetchProducts, Product, ProductCategory, PRODUCTS_API
 } from '../../../services/products';
@@ -49,7 +52,9 @@ interface BannerSlide {
   imageUrl?: string;
 }
 
-// 輪播文案是假資料，背景圖改抓 DummyJSON 商品的真實照片；color 是圖片載入前/失敗時的底色
+// 輪播文案是假資料，背景圖改抓 DummyJSON 商品的真實照片；color 是圖片載入前/失敗時的底色。
+// 這組顏色是輪播「內容」本身的設計配色（跟行銷素材綁在一起），刻意不隨深色模式切換，
+// 比照大部分 App 促銷輪播圖維持品牌一致外觀的做法。
 const BANNER_COPY: Omit<BannerSlide, 'id' | 'imageUrl'>[] = [
   { title: '春季優惠開跑', subtitle: '即日起至月底，全館 9 折', color: '#EDE7DD' },
   { title: '新品上架', subtitle: '本週精選新品搶先看', color: '#DCE3D5' },
@@ -76,7 +81,7 @@ interface QuickAction {
 
 // 4x2 功能捷徑：全部對應 App 內既有畫面，不是假連結
 const QUICK_ACTIONS: QuickAction[] = [
-  { id: 'coupons', label: '我的優惠券', icon: 'pricetag-outline', route: '/coupons' },
+  { id: 'coupons', label: '我的', icon: 'pricetag-outline', route: '/coupons' },
   { id: 'favorites', label: '我的收藏', icon: 'heart-outline', route: '/favorites' },
   { id: 'inbox', label: '通知中心', icon: 'notifications-outline', route: '/inbox' },
   { id: 'settings', label: '帳號設定', icon: 'settings-outline', route: '/settings' },
@@ -125,6 +130,8 @@ function shuffle<T>(array: T[]): T[] {
 
 // 手刻的跑馬燈：把文字重複兩份接在一起，動畫跑到第一份文字的寬度時無縫接回起點
 function Marquee() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [textWidth, setTextWidth] = useState(0);
   const translateX = useSharedValue(0);
 
@@ -157,9 +164,11 @@ function Marquee() {
 // 首頁搜尋列：純導航用的假輸入框，點下去 push 進 app/search.tsx 才是真正的輸入框
 function HomeSearchBar() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <Pressable style={styles.searchBar} onPress={() => router.push('/search')}>
-      <Ionicons name="search" size={18} color="#8A8377" />
+      <Ionicons name="search" size={18} color={colors.textMuted} />
       <Text style={styles.searchBarPlaceholder}>搜尋商品</Text>
     </Pressable>
   );
@@ -169,6 +178,8 @@ function HomeSearchBar() {
 function QuickActionsGrid() {
   const router = useRouter();
   const navigation = useNavigation();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
 
   const handlePress = (action: QuickAction) => {
@@ -186,7 +197,7 @@ function QuickActionsGrid() {
       {QUICK_ACTIONS.map((action) => (
         <Pressable key={action.id} style={styles.quickAction} onPress={() => handlePress(action)}>
           <View style={styles.quickIconCircle}>
-            <Ionicons name={action.icon} size={22} color="#5C5449" />
+            <Ionicons name={action.icon} size={22} color={colors.textMuted} />
             {action.id === 'inbox' && unreadCount > 0 && (
               <View style={styles.quickBadge}>
                 <Text style={styles.quickBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
@@ -202,6 +213,8 @@ function QuickActionsGrid() {
 
 // 小型活動輪播：跟大輪播共用 Carousel 元件，只是高度縮小、左文案右圖片的構圖
 function PromoCarousel({ banners }: { banners: PromoSlide[] }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [activeIndex, setActiveIndex] = useState(0);
 
   return (
@@ -224,7 +237,7 @@ function PromoCarousel({ banners }: { banners: PromoSlide[] }) {
               <Text style={styles.promoSubtitle} numberOfLines={1}>{item.subtitle}</Text>
             </View>
             {item.imageUrl && (
-              <Image source={{ uri: item.imageUrl }} style={styles.promoImage} resizeMode="cover" />
+              <Image source={{ uri: item.imageUrl }} style={styles.promoImage} contentFit="cover" />
             )}
           </View>
         )}
@@ -240,6 +253,8 @@ function PromoCarousel({ banners }: { banners: PromoSlide[] }) {
 
 // 收藏愛心按鈕，商品 Grid 卡片與商品推薦卡片共用
 function FavoriteButton({ productId, style }: { productId: number; style?: object }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const isFavorite = useFavoritesStore((state) => state.favoriteIds.includes(productId));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
 
@@ -249,13 +264,15 @@ function FavoriteButton({ productId, style }: { productId: number; style?: objec
       onPress={() => toggleFavorite(productId)}
       hitSlop={8}
     >
-      <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={16} color={isFavorite ? '#FF3B30' : '#999'} />
+      <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={16} color={isFavorite ? colors.danger : colors.textSubtle} />
     </Pressable>
   );
 }
 
 // 水平 ScrollView 測試：商品推薦卡片列，下方用一條依捲動比例伸縮/位移的細長條取代原生捲軸樣式
 function ProductRecommendations({ products }: { products: Product[] }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [scrollX, setScrollX] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
@@ -289,7 +306,7 @@ function ProductRecommendations({ products }: { products: Product[] }) {
             style={[styles.recommendCard, { marginRight: index === products.length - 1 ? 0 : RECOMMEND_GAP }]}
           >
             <View>
-              <Image source={{ uri: product.thumbnail }} style={styles.recommendImage} resizeMode="cover" />
+              <Image source={{ uri: product.thumbnail }} style={styles.recommendImage} contentFit="cover" />
               <FavoriteButton productId={product.id} style={styles.recommendFavoriteButton} />
             </View>
             <Text style={styles.recommendTitle} numberOfLines={1}>{product.title}</Text>
@@ -315,6 +332,8 @@ interface HomeHeaderProps {
 }
 
 function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, selectedCategory, onSelectCategory }: HomeHeaderProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [activeIndex, setActiveIndex] = useState(0);
 
   return (
@@ -338,7 +357,7 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
           renderItem={({ item }) => (
             <View style={[styles.bannerSlide, { backgroundColor: item.color }]}>
               {item.imageUrl && (
-                <Image source={{ uri: item.imageUrl }} style={styles.bannerImage} resizeMode="cover" />
+                <Image source={{ uri: item.imageUrl }} style={styles.bannerImage} contentFit="cover" />
               )}
               <View style={styles.bannerScrim} />
               <Text style={styles.bannerTitle}>{item.title}</Text>
@@ -361,7 +380,7 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
       </View>
 
       {isCategoriesLoading ? (
-        <ActivityIndicator style={{ marginVertical: 12 }} color="#A69B8D" />
+        <ActivityIndicator style={{ marginVertical: 12 }} color={colors.accent} />
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
           <Pressable
@@ -392,6 +411,8 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
 }
 
 export default function HomeScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
 
   const { data: bannerImages = [] } = useQuery({
@@ -460,7 +481,7 @@ export default function HomeScreen() {
       ListFooterComponent={<ProductRecommendations products={recommendedProducts.slice(0, 6)} />}
       ListEmptyComponent={
         isProductsLoading ? (
-          <ActivityIndicator style={{ marginTop: 24 }} color="#A69B8D" />
+          <ActivityIndicator style={{ marginTop: 24 }} color={colors.accent} />
         ) : isError ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>商品載入失敗，請下拉重新整理</Text>
@@ -479,7 +500,7 @@ export default function HomeScreen() {
         return (
           <View style={[styles.productCard, { marginRight: isLastInRow ? 0 : GRID_GAP }]}>
             <View>
-              <Image source={{ uri: item.thumbnail }} style={styles.productThumb} resizeMode="cover" />
+              <Image source={{ uri: item.thumbnail }} style={styles.productThumb} contentFit="cover" />
               <FavoriteButton productId={item.id} style={styles.productFavoriteButton} />
             </View>
             <Text style={styles.productTitle} numberOfLines={2}>{item.title}</Text>
@@ -491,16 +512,16 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  listContent: { backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 40 },
-  greeting: { fontSize: 24, fontWeight: '600', color: '#333333' },
-  greetingSubtitle: { fontSize: 13, color: '#8A8377', marginTop: 4, marginBottom: 20 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  listContent: { backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 24, paddingBottom: 40 },
+  greeting: { fontSize: 24, fontWeight: '600', color: colors.text },
+  greetingSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 4, marginBottom: 20 },
 
   searchBar: {
     flexDirection: 'row', alignItems: 'center', height: 40, borderRadius: 10,
-    backgroundColor: '#F5F3EF', paddingHorizontal: 12, gap: 8, marginBottom: 20
+    backgroundColor: colors.surface, paddingHorizontal: 12, gap: 8, marginBottom: 20
   },
-  searchBarPlaceholder: { fontSize: 14, color: '#B0AA9C' },
+  searchBarPlaceholder: { fontSize: 14, color: colors.textSubtle },
 
   carouselWrapper: { alignItems: 'center' },
   bannerSlide: {
@@ -509,54 +530,54 @@ const styles = StyleSheet.create({
   },
   bannerImage: { ...StyleSheet.absoluteFillObject },
   bannerScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.32)' },
-  bannerTitle: { fontSize: 20, fontWeight: '600', color: '#fff' },
-  bannerSubtitle: { fontSize: 13, color: '#F0EEE9', marginTop: 6 },
+  bannerTitle: { fontSize: 20, fontWeight: '600', color: colors.white },
+  bannerSubtitle: { fontSize: 13, color: colors.white, marginTop: 6 },
   dotsRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 12, gap: 6 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#E3DED4' },
-  dotActive: { backgroundColor: '#A69B8D', width: 16 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.border },
+  dotActive: { backgroundColor: colors.accent, width: 16 },
 
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 20 },
   quickAction: { width: '25%', alignItems: 'center', marginBottom: 16 },
   quickIconCircle: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: '#F5F3EF',
+    width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center'
   },
   quickBadge: {
     position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3
+    backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3
   },
-  quickBadgeText: { fontSize: 9, color: '#fff', fontWeight: '700' },
-  quickLabel: { fontSize: 11, color: '#5C5449', marginTop: 6, textAlign: 'center' },
+  quickBadgeText: { fontSize: 9, color: colors.white, fontWeight: '700' },
+  quickLabel: { fontSize: 11, color: colors.textMuted, marginTop: 6, textAlign: 'center' },
 
   promoSlide: {
     flex: 1, borderRadius: 16, flexDirection: 'row', alignItems: 'center', overflow: 'hidden'
   },
   promoTextGroup: { flex: 1, paddingLeft: 16, paddingVertical: 12 },
-  promoImage: { width: 110, height: '100%', backgroundColor: '#F5F3EF' },
+  promoImage: { width: 110, height: '100%', backgroundColor: colors.surface },
   promoTagPill: {
     alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 8,
     paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4
   },
-  promoTagText: { fontSize: 10, color: '#8A6D3B', fontWeight: '600' },
+  promoTagText: { fontSize: 10, color: '#5C4A2E', fontWeight: '600' },
   promoTitle: { fontSize: 15, fontWeight: '600', color: '#3A362E' },
-  promoSubtitle: { fontSize: 12, color: '#8A8377', marginTop: 2 },
+  promoSubtitle: { fontSize: 12, color: '#6B6558', marginTop: 2 },
 
   marqueeContainer: {
-    marginTop: 20, height: 36, borderRadius: 8, backgroundColor: '#F5F3EF',
+    marginTop: 20, height: 36, borderRadius: 8, backgroundColor: colors.surface,
     justifyContent: 'center', overflow: 'hidden'
   },
   marqueeTrack: { flexDirection: 'row' },
-  marqueeText: { fontSize: 13, color: '#5C5449', paddingHorizontal: 4 },
+  marqueeText: { fontSize: 13, color: colors.textMuted, paddingHorizontal: 4 },
 
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 12 },
-  sectionAccentBar: { width: 4, height: 16, backgroundColor: '#A69B8D', borderRadius: 2, marginRight: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#333333' },
+  sectionAccentBar: { width: 4, height: 16, backgroundColor: colors.accent, borderRadius: 2, marginRight: 8 },
+  sectionTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
 
   categoryScroll: { marginBottom: 16 },
   categoryTab: { alignItems: 'center', marginRight: 20, paddingBottom: 8 },
-  categoryText: { fontSize: 14, color: '#B0AA9C' },
-  categoryTextActive: { color: '#3A362E', fontWeight: '600' },
-  categoryUnderline: { marginTop: 6, height: 2, width: '100%', backgroundColor: '#A69B8D', borderRadius: 1 },
+  categoryText: { fontSize: 14, color: colors.textSubtle },
+  categoryTextActive: { color: colors.text, fontWeight: '600' },
+  categoryUnderline: { marginTop: 6, height: 2, width: '100%', backgroundColor: colors.accent, borderRadius: 1 },
 
   favoriteButton: {
     position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13,
@@ -566,17 +587,17 @@ const styles = StyleSheet.create({
   productFavoriteButton: {},
 
   recommendCard: { width: RECOMMEND_CARD_WIDTH },
-  recommendImage: { width: RECOMMEND_CARD_WIDTH, height: 140, borderRadius: 12, backgroundColor: '#F5F3EF', marginBottom: 10 },
-  recommendTitle: { fontSize: 14, color: '#333333', fontWeight: '600' },
-  recommendDescription: { fontSize: 12, color: '#8A8377', marginTop: 4, lineHeight: 18 },
-  scrollTrack: { height: 3, backgroundColor: '#F0EEE9', borderRadius: 2, marginTop: 16, overflow: 'hidden' },
-  scrollThumb: { position: 'absolute', height: 3, backgroundColor: '#A69B8D', borderRadius: 2 },
+  recommendImage: { width: RECOMMEND_CARD_WIDTH, height: 140, borderRadius: 12, backgroundColor: colors.surface, marginBottom: 10 },
+  recommendTitle: { fontSize: 14, color: colors.text, fontWeight: '600' },
+  recommendDescription: { fontSize: 12, color: colors.textMuted, marginTop: 4, lineHeight: 18 },
+  scrollTrack: { height: 3, backgroundColor: colors.border, borderRadius: 2, marginTop: 16, overflow: 'hidden' },
+  scrollThumb: { position: 'absolute', height: 3, backgroundColor: colors.accent, borderRadius: 2 },
 
   productCard: { width: GRID_CARD_WIDTH, marginBottom: GRID_GAP + 6 },
-  productThumb: { width: GRID_CARD_WIDTH, height: GRID_CARD_WIDTH, borderRadius: 10, marginBottom: 8, backgroundColor: '#F5F3EF' },
-  productTitle: { fontSize: 13, color: '#333333', fontWeight: '500', lineHeight: 18 },
-  productPrice: { fontSize: 12, color: '#8A8377', marginTop: 4, fontWeight: '600' },
+  productThumb: { width: GRID_CARD_WIDTH, height: GRID_CARD_WIDTH, borderRadius: 10, marginBottom: 8, backgroundColor: colors.surface },
+  productTitle: { fontSize: 13, color: colors.text, fontWeight: '500', lineHeight: 18 },
+  productPrice: { fontSize: 12, color: colors.textMuted, marginTop: 4, fontWeight: '600' },
 
   emptyState: { paddingTop: 24, alignItems: 'center' },
-  emptyStateText: { fontSize: 13, color: '#B0AA9C' },
+  emptyStateText: { fontSize: 13, color: colors.textSubtle },
 });

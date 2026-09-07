@@ -4,12 +4,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import Text from '../../../components/Text';
+import { ThemeColors } from '../../../constants/Colors';
+import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
+import { ThemeMode, useThemeModeStore } from '../../../store/useThemeModeStore';
+
+const APPEARANCE_OPTIONS: { key: ThemeMode; label: string }[] = [
+  { key: 'light', label: '淺色' },
+  { key: 'dark', label: '深色' },
+  { key: 'system', label: '系統預設' },
+];
 
 console.log("Supabase URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
 console.log("Supabase ANON Key:", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
@@ -24,9 +34,13 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 export default function SettingsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { logout, userToken } = useAuthStore();
   const resetNotifications = useNotificationStore(state => state.reset);
-  
+  const themeMode = useThemeModeStore((state) => state.mode);
+  const setThemeMode = useThemeModeStore((state) => state.setMode);
+
   const [isUploading, setIsUploading] = useState(false);
 
   // 2. 抓取使用者資料 (Server State)
@@ -43,7 +57,7 @@ export default function SettingsScreen() {
 
   // 3. 更新後端頭像網址的 Mutation
   const updateAvatarMutation = useMutation({
-    mutationFn: (url: string) => 
+    mutationFn: (url: string) =>
       axios.put(`${API_URL}/api/v1/users/me`, { avatar_url: url }, {
         headers: { Authorization: `Bearer ${userToken}` }
       }),
@@ -126,15 +140,15 @@ const uploadToSupabase = async (uri: string) => {
   const handleLogout = () => {
     Alert.alert('登出確認', '您確定要登出系統嗎？', [
       { text: '取消', style: 'cancel' },
-      { 
-        text: '確定登出', 
+      {
+        text: '確定登出',
         style: 'destructive',
         onPress: async () => {
           queryClient.clear(); // 清空 TanStack Query 快取
           resetNotifications(); // 重置 Zustand 通知計數
-          await logout(); 
-          router.replace('/'); 
-        } 
+          await logout();
+          router.replace('/');
+        }
       },
     ]);
   };
@@ -144,8 +158,8 @@ const uploadToSupabase = async (uri: string) => {
       <Text style={styles.title}>個人設定</Text>
 
       <View style={styles.profileCard}>
-        <Pressable 
-          onPress={handlePickImage} 
+        <Pressable
+          onPress={handlePickImage}
           disabled={isUploading || isLoading}
           style={({ pressed }) => [
             styles.avatarWrapper,
@@ -157,25 +171,25 @@ const uploadToSupabase = async (uri: string) => {
               <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={40} color="#fff" />
+                <Ionicons name="person" size={40} color={colors.onTint} />
               </View>
             )}
-            
+
             {isUploading && (
               <View style={styles.uploadOverlay}>
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={colors.white} />
               </View>
             )}
 
             <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={14} color="#fff" />
+              <Ionicons name="camera" size={14} color={colors.onTint} />
             </View>
           </View>
         </Pressable>
 
         <View style={styles.userInfo}>
           {isLoading ? (
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.tint} />
           ) : (
             <>
               <Text style={styles.userName}>{user?.username || 'User'}</Text>
@@ -186,41 +200,61 @@ const uploadToSupabase = async (uri: string) => {
       </View>
 
       <View style={styles.menuSection}>
+        <Text style={styles.sectionLabel}>外觀模式</Text>
+        <View style={styles.appearanceRow}>
+          {APPEARANCE_OPTIONS.map((option) => {
+            const isActive = themeMode === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                style={[styles.appearanceOption, isActive && styles.appearanceOptionActive]}
+                onPress={() => setThemeMode(option.key)}
+              >
+                <Text style={[styles.appearanceOptionText, isActive && styles.appearanceOptionTextActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.menuSection}>
         <Text style={styles.sectionLabel}>帳號管理</Text>
         <Text style={styles.label}>個人福利</Text>
-        <Pressable 
+        <Pressable
                 // 3. 改用 router.push，路徑直接對應檔名
-                onPress={() => router.push('/coupons')} 
+                onPress={() => router.push('/coupons')}
                 style={styles.menuItem}
         >
-          <Text style={styles.menuItemText}>我的優惠券</Text>
+          <Text style={styles.menuItemText}>我的</Text>
           <View style={styles.badgeContainer}>
             <Text style={styles.badgeText}>可用</Text>
           </View>
         </Pressable>
-        <Pressable 
+        <Pressable
           onPress={handleLogout}
           style={({ pressed }) => [
             styles.logoutButton,
             pressed && styles.logoutButtonPressed
           ]}
         >
-          <Ionicons name="log-out-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+          <Ionicons name="log-out-outline" size={20} color={colors.white} style={{ marginRight: 8 }} />
           <Text style={styles.logoutText}>登出系統</Text>
         </Pressable>
       </View>
-      
+
       <Text style={styles.versionText}>版本號：1.0.3 (Android Blob Fix)</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f8f9fa' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: '#333' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, padding: 20, backgroundColor: colors.background },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: colors.text },
   profileCard: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 20,
     borderRadius: 20,
     alignItems: 'center',
@@ -236,18 +270,18 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#eee',
+    backgroundColor: colors.surfaceAlt,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   avatar: { width: '100%', height: '100%' },
-  avatarPlaceholder: { 
-    width: '100%', 
-    height: '100%', 
-    backgroundColor: '#007AFF', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.tint,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   uploadOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -259,22 +293,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.tint,
     width: 26,
     height: 26,
     borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#fff'
+    borderColor: colors.surface,
   },
   userInfo: { flex: 1, marginLeft: 20 },
-  userName: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  userEmail: { fontSize: 14, color: '#666', marginTop: 4 },
+  userName: { fontSize: 20, fontWeight: 'bold', color: colors.text },
+  userEmail: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   // 修正你的紅字報錯
   label: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMuted,
     marginBottom: 8,
     marginTop: 16,
     fontWeight: '600',
@@ -284,7 +318,7 @@ const styles = StyleSheet.create({
   // sectionLabel: { fontSize: 14, color: '#999', marginBottom: 12, marginLeft: 5 },
   // 選單區塊容器
   menuSection: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     marginVertical: 10,
     // 如果你有定義 shadow 也可以加上
@@ -293,7 +327,30 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
-    color: '#333',
+    color: colors.text,
+  },
+  // 外觀模式：淺色／深色／系統預設 三選一
+  appearanceRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  appearanceOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+  },
+  appearanceOptionActive: {
+    backgroundColor: colors.tint,
+  },
+  appearanceOptionText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  appearanceOptionTextActive: {
+    color: colors.onTint,
   },
  // 優惠券選單項目
   menuItem: {
@@ -301,10 +358,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: colors.border,
     // 加上一點陰影讓它跟按鈕區分開來
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -315,24 +372,24 @@ const styles = StyleSheet.create({
 
   menuItemText: {
     fontSize: 16,
-    color: '#333',
+    color: colors.text,
     fontWeight: '500',
   },
   badgeContainer: {
-    backgroundColor: '#FF9500', // 優惠券經典橘色
+    backgroundColor: colors.warning, // 優惠券經典橘色
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
   },
 
   badgeText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 12,
     fontWeight: 'bold',
-  }, 
+  },
   logoutButton: {
     flexDirection: 'row',
-    backgroundColor: '#ff4d4f',
+    backgroundColor: colors.danger,
     padding: 16,
     borderRadius: 14,
     alignItems: 'center',
@@ -342,7 +399,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
   },
-  logoutText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  versionText: { textAlign: 'center', color: '#ccc', marginTop: 50, fontSize: 12 },
+  logoutText: { color: colors.white, fontSize: 16, fontWeight: '600' },
+  versionText: { textAlign: 'center', color: colors.textSubtle, marginTop: 50, fontSize: 12 },
 });
-

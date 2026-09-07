@@ -6,12 +6,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { Image } from 'expo-image';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Dimensions, Image, Pressable, StyleSheet, TextInput, View
+  ActivityIndicator, Dimensions, Pressable, StyleSheet, TextInput, View
 } from 'react-native';
 
 import Text from '../components/Text';
+import { ThemeColors } from '../constants/Colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { Product, searchProducts } from '../services/products';
 import { fetchSearchSuggestions } from '../services/search';
 import { useSearchHistoryStore } from '../store/useSearchHistoryStore';
@@ -24,7 +27,7 @@ const GRID_CARD_WIDTH = (CONTENT_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_C
 
 const DEBOUNCE_MS = 400;
 
-function KeywordChip({ label, onPress }: { label: string; onPress: () => void }) {
+function KeywordChip({ label, onPress, styles }: { label: string; onPress: () => void; styles: Styles }) {
   return (
     <Pressable style={styles.chip} onPress={onPress}>
       <Text style={styles.chipText}>{label}</Text>
@@ -32,9 +35,13 @@ function KeywordChip({ label, onPress }: { label: string; onPress: () => void })
   );
 }
 
+type Styles = ReturnType<typeof createStyles>;
+
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const keywords = useSearchHistoryStore((state) => state.keywords);
   const addKeyword = useSearchHistoryStore((state) => state.addKeyword);
@@ -76,11 +83,11 @@ export default function SearchScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color="#8A8377" />
+        <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput
           style={styles.input}
           placeholder="搜尋商品"
-          placeholderTextColor="#B0AA9C"
+          placeholderTextColor={colors.textSubtle}
           value={query}
           onChangeText={setQuery}
           autoFocus
@@ -89,7 +96,7 @@ export default function SearchScreen() {
         />
         {query.length > 0 && (
           <Pressable onPress={() => { setQuery(''); setDebouncedQuery(''); }} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color="#B0AA9C" />
+            <Ionicons name="close-circle" size={18} color={colors.textSubtle} />
           </Pressable>
         )}
       </View>
@@ -106,7 +113,7 @@ export default function SearchScreen() {
               </View>
               <View style={styles.chipRow}>
                 {keywords.map((keyword) => (
-                  <KeywordChip key={keyword} label={keyword} onPress={() => runKeyword(keyword)} />
+                  <KeywordChip key={keyword} label={keyword} onPress={() => runKeyword(keyword)} styles={styles} />
                 ))}
               </View>
             </View>
@@ -116,7 +123,7 @@ export default function SearchScreen() {
             <Text style={styles.sectionTitle}>熱門搜尋</Text>
             <View style={styles.chipRow}>
               {hotKeywords.map((keyword) => (
-                <KeywordChip key={keyword} label={keyword} onPress={() => runKeyword(keyword)} />
+                <KeywordChip key={keyword} label={keyword} onPress={() => runKeyword(keyword)} styles={styles} />
               ))}
             </View>
           </View>
@@ -129,7 +136,7 @@ export default function SearchScreen() {
           contentContainerStyle={styles.resultsContent}
           ListEmptyComponent={
             isLoading ? (
-              <ActivityIndicator style={{ marginTop: 24 }} color="#A69B8D" />
+              <ActivityIndicator style={{ marginTop: 24 }} color={colors.accent} />
             ) : isError ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateText}>搜尋失敗，請稍後再試</Text>
@@ -144,7 +151,7 @@ export default function SearchScreen() {
             const isLastInRow = (index + 1) % GRID_COLUMNS === 0;
             return (
               <View style={[styles.productCard, { marginRight: isLastInRow ? 0 : GRID_GAP }]}>
-                <Image source={{ uri: item.thumbnail }} style={styles.productThumb} resizeMode="cover" />
+                <Image source={{ uri: item.thumbnail }} style={styles.productThumb} contentFit="cover" />
                 <Text style={styles.productTitle} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.productPrice}>${item.price}</Text>
               </View>
@@ -156,29 +163,29 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 12, marginBottom: 8,
-    height: 40, borderRadius: 10, backgroundColor: '#F5F3EF', paddingHorizontal: 12, gap: 8,
+    height: 40, borderRadius: 10, backgroundColor: colors.surface, paddingHorizontal: 12, gap: 8,
   },
-  input: { flex: 1, fontSize: 14, color: '#333333', padding: 0 },
+  input: { flex: 1, fontSize: 14, color: colors.text, padding: 0 },
 
   suggestionsContainer: { paddingHorizontal: 16, paddingTop: 8 },
   section: { marginBottom: 24 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#333333' },
-  clearText: { fontSize: 12, color: '#B0AA9C' },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: colors.text },
+  clearText: { fontSize: 12, color: colors.textSubtle },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: '#F5F3EF' },
-  chipText: { fontSize: 13, color: '#5C5449' },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.surface },
+  chipText: { fontSize: 13, color: colors.textMuted },
 
   resultsContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   productCard: { width: GRID_CARD_WIDTH, marginBottom: GRID_GAP + 6 },
-  productThumb: { width: GRID_CARD_WIDTH, height: GRID_CARD_WIDTH, borderRadius: 10, marginBottom: 8, backgroundColor: '#F5F3EF' },
-  productTitle: { fontSize: 13, color: '#333333', fontWeight: '500', lineHeight: 18 },
-  productPrice: { fontSize: 12, color: '#8A8377', marginTop: 4, fontWeight: '600' },
+  productThumb: { width: GRID_CARD_WIDTH, height: GRID_CARD_WIDTH, borderRadius: 10, marginBottom: 8, backgroundColor: colors.surface },
+  productTitle: { fontSize: 13, color: colors.text, fontWeight: '500', lineHeight: 18 },
+  productPrice: { fontSize: 12, color: colors.textMuted, marginTop: 4, fontWeight: '600' },
 
   emptyState: { paddingTop: 24, alignItems: 'center' },
-  emptyStateText: { fontSize: 13, color: '#B0AA9C' },
+  emptyStateText: { fontSize: 13, color: colors.textSubtle },
 });

@@ -53,6 +53,37 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 - **首頁功能 Grid 與小型活動輪播（`app/(drawer)/(tabs)/home.tsx`）** — 首頁「歡迎回來」下方依序是：小型活動輪播（`PromoCarousel`）→ 4x2 功能 Grid（`QuickActionsGrid`）→ 大輪播（4 張橫幅）→ 跑馬燈 → 商品分類標籤。`QuickActionsGrid` 的 8 個入口（`QUICK_ACTIONS` 常數）全部對應 App 內既有畫面，用 `router.push('/xxx')` 導航（不含路由群組前綴，比照 `settings.tsx` 既有寫法），最後一個「全部服務」比較特殊，是用 `useNavigation()` + `DrawerActions.openDrawer()`（`@react-navigation/native`）開啟 Drawer 選單，不是 `router.push`；通知入口的紅點數字直接讀 `useNotificationStore` 的 `unreadCount`，跟 Tab Bar 徽章同一份即時資料，不是另外造的假資料。`PromoCarousel`（`PROMO_COPY` 常數）文案是純前端假資料，圖片則比照大輪播抓 DummyJSON 商品照片（`fetchPromoImages`，用 `skip` 參數跟大輪播的 `fetchBannerImages` 錯開，避免抓到重複圖片）；純文案的假資料之後若要改成後端可控（不用出 App 版本就能換活動內容），可以參考 `plan.md`（如果還在）或跟 `back-end` session 討論一張通用的 banner/promotion 表（`title`／`link_target`／`sort_order`／`start_at`／`end_at`／`is_active` 等欄位）。
 
+### 主題系統（Theme／深色模式）
+
+- **`constants/Colors.ts`** — 全站唯一的顏色定義來源，`Colors.light` / `Colors.dark` 兩組語意色票（`background`／`surface`／`surfaceAlt`／`border`／`text`／`textMuted`／`textSubtle`／`tint`／`onTint`／`accent`／`danger`／`dangerSurface`／`success`／`warning`／`warningSurface`／`highlight`／`white`）。淺色是原本就有的 MUJI 木質/大地色系，深色是對應設計的深木質炭褐色系，不是隨便套一套深色 palette。`tint` 統一取代了改版前混用的 `#007AFF`（藍，舊畫面按鈕）與 `#A69B8D`（裝飾用強調色），兩者現在共用同一個語意色，避免畫面之間風格不一致；`accent` 則保留給對比度需求較低的純裝飾用途（輪播小圓點、底線、Section 色塊）。
+
+- **`hooks/useThemeColors.ts`** — 畫面元件要顏色一律呼叫這個 hook，**不要**自己 `import { Colors }` 再手動判斷 scheme。同檔案也匯出 `useResolvedScheme()`，回傳目前實際生效的 `'light' | 'dark'`（結合系統設定與使用者手動選擇，邏輯見下一點），`app/_layout.tsx` 的 `ThemeProvider`（React Navigation 導覽層顏色）也是呼叫這個 function，確保畫面內容色跟 header/Tab Bar 色永遠同步、不會不一致。
+
+- **`store/useThemeModeStore.ts`** — 使用者可在「設定」頁手動選擇外觀模式（`'light' | 'dark' | 'system'`，預設 `'system'`），Zustand + `persist` middleware 存在 `expo-secure-store`（比照 `useFavoritesStore.ts` 的做法，只存裝置本機、不同步後端）。`useResolvedScheme()` 內部：`mode === 'system'` 時退回 `useColorScheme()`（跟裝置系統設定走），否則直接用使用者選的值蓋過系統設定。手動切換的 UI 在 `settings.tsx` 的「外觀模式」區塊，三個 Pressable 分頁（淺色／深色／系統預設）。
+
+- **畫面裡的使用語法** — 因為顏色現在是執行期才決定（可能隨系統設定或使用者選擇改變），`StyleSheet.create` 不能再是 module 層級的靜態常數，要改成一個吃 `colors` 參數的工廠函式，搭配 `useMemo` 快取：
+
+  ```tsx
+  import { useMemo } from 'react';
+  import { StyleSheet } from 'react-native';
+  import { ThemeColors } from '../constants/Colors';
+  import { useThemeColors } from '../hooks/useThemeColors';
+
+  export default function SomeScreen() {
+    const colors = useThemeColors();
+    const styles = useMemo(() => createStyles(colors), [colors]);
+    return <View style={styles.container} />;
+  }
+
+  const createStyles = (colors: ThemeColors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+  });
+  ```
+
+  多個小型子元件共用同一組 `createStyles` 時（例如 `home.tsx` 裡的 `Marquee`／`QuickActionsGrid`／`FavoriteButton` 等），每個子元件各自呼叫一次 `useThemeColors()` + `useMemo`，不要把 `styles` 用 props 一路往下傳（React Context 讀取成本很低，這樣寫更單純）。
+
+- **刻意不套用主題色、維持寫死色碼的例外**（全部有加註解說明原因）：Google（`#4285F4`）／LINE（`#06C755`）第三方登入按鈕的品牌色，改主題會違反品牌規範；`coupon/[id].tsx` 的 QR Code 白底，掃描器需要固定的黑白高對比，不能隨深色模式變灰；`home.tsx` 的 `BANNER_COPY`／Promo 輪播的粉彩色系，視為行銷內容資料而非 App 介面色，比照大部分 App 促銷輪播圖維持品牌一致外觀的做法。
+
 ### 路由（Expo Router 檔案式路由）
 
 - `app/_layout.tsx` — 根佈局。初始化 `QueryClient`、`GestureHandlerRootView` 與 `Toast`。啟動時透過 `useAuthStore.loadToken()` 從 SecureStore 讀取 JWT。`<Stack.Screen name="magic-login" />` 刻意放在 `userToken` 條件判斷**之外**，確保 Magic Link 的 deep link 不論登入狀態都能被導航到；依 `userToken` 狀態，用 `<Stack.Protected guard={...}>` 包住整組畫面來條件式渲染 `(drawer)` 群組（已登入）或 `index`/`register` 畫面（未登入）——**不要**改回 `{condition && <Stack.Screen />}` 的寫法，`condition` 為 `false` 時子元素會是布林值，Expo Router 的 Layout 子元素型別檢查會判定「不是 Screen」，在 console 狂噴 `Layout children must be of type Screen` 警告（雖然畫面沒問題，但每次重新 render 都再印一次）。同時設定全域的推播通知點擊監聽器，導向 `/inbox`（寫成不含路由群組前綴的純路徑，群組名稱本身不影響網址，之後群組怎麼調整巢狀層級都不用改這裡）。

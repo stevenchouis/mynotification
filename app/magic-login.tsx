@@ -3,11 +3,13 @@
 // Expo Router 會依檔名自動把這個 deep link 導到這支畫面
 import axios from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Text from '../components/Text';
+import { ThemeColors } from '../constants/Colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { completeLogin } from '../services/authFlow';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -15,6 +17,8 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function MagicLoginScreen() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   // 這支畫面不論登入狀態都能被導航到（見 app/_layout.tsx），錯誤畫面的「返回登入」
   // 要看目前是否已登入決定要導去哪裡：已登入時 index 不在目前的 Stack.Protected 群組裡，
   // 硬導去 '/' 會噴 "action REPLACE...was not handled by any navigator"
@@ -57,7 +61,7 @@ export default function MagicLoginScreen() {
   if (status === 'verifying') {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={colors.tint} />
         <Text style={styles.text}>登入中，請稍候...</Text>
       </SafeAreaView>
     );
@@ -73,10 +77,10 @@ export default function MagicLoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30, backgroundColor: '#fff' },
-  text: { marginTop: 16, fontSize: 16, color: '#666' },
-  errorText: { fontSize: 16, color: '#FF3B30', textAlign: 'center', marginBottom: 24 },
-  button: { backgroundColor: '#007AFF', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30, backgroundColor: colors.background },
+  text: { marginTop: 16, fontSize: 16, color: colors.textMuted },
+  errorText: { fontSize: 16, color: colors.danger, textAlign: 'center', marginBottom: 24 },
+  button: { backgroundColor: colors.tint, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 },
+  buttonText: { color: colors.onTint, fontSize: 16, fontWeight: 'bold' },
 });

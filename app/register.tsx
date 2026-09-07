@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import axios from 'axios';
 import { useNavigation, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
@@ -14,11 +14,15 @@ import {
 // 匯入剛剛定義好的 Schema 與 Type
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Text from '../components/Text';
+import { ThemeColors } from '../constants/Colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { RegisterFormValues, registerSchema } from '../schemas/authSchema';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -43,11 +47,11 @@ export default function RegisterScreen() {
     navigation.setOptions({
       headerRight: () => (
         <Pressable onPress={() => reset()} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, marginRight: 15 })}>
-          <Text style={{ color: '#FF3B30', fontWeight: '600' }}>清空</Text>
+          <Text style={{ color: colors.danger, fontWeight: '600' }}>清空</Text>
         </Pressable>
       ),
     });
-  }, [navigation, reset]);
+  }, [navigation, reset, colors.danger]);
 
   const onSubmit = async (data: RegisterFormValues) => {
     setLoading(true);
@@ -112,15 +116,15 @@ export default function RegisterScreen() {
             )}
           />
           <Pressable style={styles.eyeIcon} onPress={() => setIsPasswordVisible(!isPasswordVisible)}>
-            <Ionicons name={isPasswordVisible ? "eye-off" : "eye"} size={22} color="#999" />
+            <Ionicons name={isPasswordVisible ? "eye-off" : "eye"} size={22} color={colors.textSubtle} />
           </Pressable>
         </View>
-        
+
         {/* 即時強度提示區 */}
         <View style={styles.strengthRow}>
-          <ValidationItem label="8位數" isMet={isLengthMet} />
-          <ValidationItem label="含數字" isMet={hasNumber} />
-          <ValidationItem label="含符號" isMet={hasSpecial} />
+          <ValidationItem label="8位數" isMet={isLengthMet} colors={colors} styles={styles} />
+          <ValidationItem label="含數字" isMet={hasNumber} colors={colors} styles={styles} />
+          <ValidationItem label="含符號" isMet={hasSpecial} colors={colors} styles={styles} />
         </View>
         {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
 
@@ -142,23 +146,23 @@ export default function RegisterScreen() {
         />
         {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>}
         
-        <Text style={{ marginTop: 20 }}>生日</Text>
+        <Text style={{ marginTop: 20, color: colors.text }}>生日</Text>
         <Controller
           control={control}
           name="birthday"
           render={({ field: { onChange, value } }) => (
             <>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowPicker(true)}
-                style={{ 
-                  padding: 15, 
-                  backgroundColor: '#f0f0f0', 
+                style={{
+                  padding: 15,
+                  backgroundColor: colors.surfaceAlt,
                   borderRadius: 8,
-                  borderColor: errors.birthday ? 'red' : 'transparent',
-                  borderWidth: 1 
+                  borderColor: errors.birthday ? colors.danger : 'transparent',
+                  borderWidth: 1
                 }}
               >
-                <Text>{value ? value.toLocaleDateString() : "請點擊選擇生日"}</Text>
+                <Text style={{ color: colors.text }}>{value ? value.toLocaleDateString() : "請點擊選擇生日"}</Text>
               </TouchableOpacity>
 
               {showPicker && (
@@ -175,19 +179,19 @@ export default function RegisterScreen() {
             </>
           )}
         />
-      {errors.birthday && <Text style={{ color: 'red' }}>{errors.birthday.message}</Text>}
+      {errors.birthday && <Text style={{ color: colors.danger }}>{errors.birthday.message}</Text>}
 
         {/* 提交按鈕 */}
-        <Pressable 
+        <Pressable
           style={({ pressed }) => [
-            styles.button, 
+            styles.button,
             pressed && styles.buttonPressed,
             loading && { opacity: 0.7 }
-          ]} 
+          ]}
           onPress={handleSubmit(onSubmit)}
           disabled={loading}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>註冊</Text>}
+          {loading ? <ActivityIndicator color={colors.onTint} /> : <Text style={styles.buttonText}>註冊</Text>}
         </Pressable>
 
         <Pressable onPress={() => router.replace('/')} style={styles.linkContainer}>
@@ -199,41 +203,43 @@ export default function RegisterScreen() {
 }
 
 // 輔助組件：驗證清單項
-const ValidationItem = ({ label, isMet }: { label: string, isMet: boolean }) => (
+const ValidationItem = ({
+  label, isMet, colors, styles,
+}: { label: string; isMet: boolean; colors: ThemeColors; styles: ReturnType<typeof createStyles> }) => (
   <View style={styles.validationItem}>
-    <Ionicons 
-      name={isMet ? "checkmark-circle" : "ellipse-outline"} 
-      size={14} 
-      color={isMet ? "#34C759" : "#C7C7CC"} 
+    <Ionicons
+      name={isMet ? "checkmark-circle" : "ellipse-outline"}
+      size={14}
+      color={isMet ? colors.success : colors.border}
     />
-    <Text style={[styles.validationText, isMet && { color: '#34C759' }]}>{label}</Text>
+    <Text style={[styles.validationText, isMet && { color: colors.success }]}>{label}</Text>
   </View>
 );
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scrollInner: { padding: 24, paddingTop: 40 },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#1A1A1A' },
-  label: { fontSize: 14, fontWeight: '600', color: '#666', marginBottom: 8, marginLeft: 4 },
-  input: { 
-    height: 55, backgroundColor: '#F2F2F7', borderRadius: 12, paddingHorizontal: 16, 
-    fontSize: 16, borderWidth: 1.5, borderColor: 'transparent' 
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: colors.text },
+  label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: 8, marginLeft: 4 },
+  input: {
+    height: 55, backgroundColor: colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 16,
+    fontSize: 16, borderWidth: 1.5, borderColor: 'transparent', color: colors.text,
   },
-  inputError: { borderColor: '#FF3B30', backgroundColor: '#FFF5F5' },
+  inputError: { borderColor: colors.danger, backgroundColor: colors.dangerSurface },
   passwordWrapper: { flexDirection: 'row', alignItems: 'center' },
   eyeIcon: { position: 'absolute', right: 16, height: 55, justifyContent: 'center' },
-  errorText: { color: '#FF3B30', fontSize: 12, marginTop: 4, marginBottom: 12, marginLeft: 4 },
+  errorText: { color: colors.danger, fontSize: 12, marginTop: 4, marginBottom: 12, marginLeft: 4 },
   strengthRow: { flexDirection: 'row', marginTop: 8, marginBottom: 4, paddingLeft: 4 },
   validationItem: { flexDirection: 'row', alignItems: 'center', marginRight: 15 },
-  validationText: { fontSize: 12, color: '#8E8E93', marginLeft: 4 },
-  button: { 
-    backgroundColor: '#007AFF', height: 55, borderRadius: 12, 
-    justifyContent: 'center', alignItems: 'center', marginTop: 20 
+  validationText: { fontSize: 12, color: colors.textSubtle, marginLeft: 4 },
+  button: {
+    backgroundColor: colors.tint, height: 55, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center', marginTop: 20
   },
-  buttonPressed: { backgroundColor: '#0056B3' },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  buttonPressed: { opacity: 0.85 },
+  buttonText: { color: colors.onTint, fontSize: 18, fontWeight: 'bold' },
   linkContainer: { marginTop: 25, alignItems: 'center' },
-  linkText: { color: '#007AFF', fontSize: 15, textDecorationLine: 'underline' }
+  linkText: { color: colors.tint, fontSize: 15, textDecorationLine: 'underline' }
 });
 
 

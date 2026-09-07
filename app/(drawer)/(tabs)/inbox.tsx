@@ -1,12 +1,14 @@
 import { FlashList } from "@shopify/flash-list";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { RectButton } from 'react-native-gesture-handler';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import Text from '../../../components/Text';
+import { ThemeColors } from '../../../constants/Colors';
+import { useThemeColors } from '../../../hooks/useThemeColors';
 // 匯入型別與 Store
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
@@ -17,6 +19,8 @@ const NOTIFICATIONS_API = `${API_URL}/api/v1/notifications`;
 
 export default function InboxScreen() {
   const queryClient = useQueryClient();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const token = useAuthStore(state => state.userToken);
   const setUnreadCount = useNotificationStore(state => state.setUnreadCount);
 
@@ -93,7 +97,7 @@ export default function InboxScreen() {
         onPress={() => !item.is_read && markAsReadMutation.mutate(item.id)}
         style={({ pressed }) => [
           styles.itemContainer,
-          { backgroundColor: item.is_read ? '#ffffff' : '#F0F8FF' },
+          { backgroundColor: item.is_read ? colors.background : colors.highlight },
           pressed && { opacity: 0.7 }
         ]}
       >
@@ -114,7 +118,7 @@ export default function InboxScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingCenter}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={colors.tint} />
       </View>
     );
   }
@@ -151,33 +155,33 @@ export default function InboxScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
-  toolbar: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 16, 
-    paddingVertical: 12, 
-    backgroundColor: '#fff', 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#eee' 
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border
   },
-  unreadText: { fontSize: 14, color: '#666' },
+  unreadText: { fontSize: 14, color: colors.textMuted },
   readAllButton: { paddingVertical: 4, paddingHorizontal: 8 },
-  readAllText: { fontSize: 14, color: '#007AFF', fontWeight: '600' },
-  itemContainer: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row' },
+  readAllText: { fontSize: 14, color: colors.tint, fontWeight: '600' },
+  itemContainer: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row' },
   content: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  title: { fontSize: 16, color: '#333', flex: 1 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#007AFF', marginLeft: 8 },
-  body: { fontSize: 14, color: '#666', marginBottom: 8 },
-  time: { fontSize: 12, color: '#999' },
-  deleteButton: { backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', width: 80, height: '100%' },
-  deleteText: { color: 'white', fontWeight: '600' },
+  title: { fontSize: 16, color: colors.text, flex: 1 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.tint, marginLeft: 8 },
+  body: { fontSize: 14, color: colors.textMuted, marginBottom: 8 },
+  time: { fontSize: 12, color: colors.textSubtle },
+  deleteButton: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 80, height: '100%' },
+  deleteText: { color: colors.white, fontWeight: '600' },
   emptyContainer: { paddingTop: 100, alignItems: 'center' },
-  emptyText: { color: '#999', fontSize: 16 },
+  emptyText: { color: colors.textSubtle, fontSize: 16 },
 });
 
 

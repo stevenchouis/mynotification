@@ -1,9 +1,11 @@
 // app/(drawer)/faq.tsx
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import Text from '../../components/Text';
+import { ThemeColors } from '../../constants/Colors';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 interface FaqEntry {
   id: string;
@@ -46,6 +48,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
 
 export default function FaqScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -59,7 +63,7 @@ export default function FaqScreen() {
           >
             <View style={styles.questionRow}>
               <Text style={styles.question}>{entry.question}</Text>
-              <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#A69B8D" />
+              <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.accent} />
             </View>
             {isExpanded && <Text style={styles.answer}>{entry.answer}</Text>}
           </Pressable>
@@ -69,12 +73,12 @@ export default function FaqScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: '#fff' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { padding: 16, backgroundColor: colors.background },
   card: {
-    backgroundColor: '#F5F3EF', borderRadius: 12, padding: 16, marginBottom: 12,
+    backgroundColor: colors.surface, borderRadius: 12, padding: 16, marginBottom: 12,
   },
   questionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  question: { flex: 1, fontSize: 15, fontWeight: '600', color: '#333333', marginRight: 8 },
-  answer: { fontSize: 13, color: '#5C5449', lineHeight: 20, marginTop: 10 },
+  question: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text, marginRight: 8 },
+  answer: { fontSize: 13, color: colors.textMuted, lineHeight: 20, marginTop: 10 },
 });

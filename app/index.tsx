@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import axios from 'axios';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 // Alert (React Native 內建) 用來顯示彈窗提示
 // react-native-toast-message 是一個第三方庫，可以顯示更美觀的 Toast 通知，提供更多自定義選項和更好的使用者體驗
@@ -18,6 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
 import Text from '../components/Text';
+import { ThemeColors } from '../constants/Colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 // 根據你的目錄結構匯入
 // LoginFormValues 是Form 的Typescript 型別定義，loginSchema 是 Zod 驗證規則
 import { LoginFormValues, loginSchema } from '../schemas/authSchema';
@@ -50,6 +52,8 @@ Notifications.setNotificationHandler({
 
 const LoginIndex = () => {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   // 從全局狀態管理的Hook中取得 userToken 和 setUserToken 方法
   const { userToken } = useAuthStore();
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
@@ -244,7 +248,7 @@ const LoginIndex = () => {
           {/* // 按鈕內部所包的內容：如果正在提交，就顯示 ActivityIndicator 的轉圈圈動畫，
           // 否則顯示「登入」文字 */}
           {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onTint} />
           ) : (
             <Text style={styles.buttonText}>登入</Text>
           )}
@@ -301,7 +305,7 @@ const LoginIndex = () => {
           disabled={isMagicLinkSubmitting}
         >
           {isMagicLinkSubmitting ? (
-            <ActivityIndicator color="#007AFF" />
+            <ActivityIndicator color={colors.tint} />
           ) : (
             <Text style={styles.magicLinkText}>改用 Email 連結登入（免密碼）</Text>
           )}
@@ -329,62 +333,63 @@ const LoginIndex = () => {
 
 export default LoginIndex;
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   // View inner 的樣式：使用 flexbox 來垂直置中內容，並且加上適當的內距
   inner: { flex: 1, justifyContent: 'center', padding: 30 },
   // Text title 的樣式：較大的字體、加粗、深色、置中，以及底部的外距
-  title: { fontSize: 32, fontWeight: 'bold', color: '#1a1a1a', textAlign: 'center', marginBottom: 5 },
+  title: { fontSize: 32, fontWeight: 'bold', color: colors.text, textAlign: 'center', marginBottom: 5 },
   // Text subtitle 的樣式：中等字體、較淺的顏色、置中，以及底部的外距
-  subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 40 },
+  subtitle: { fontSize: 16, color: colors.textMuted, textAlign: 'center', marginBottom: 40 },
   inputGroup: { marginBottom: 20 },
-  label: { fontSize: 14, color: '#333', marginBottom: 8, fontWeight: '500' },
+  label: { fontSize: 14, color: colors.text, marginBottom: 8, fontWeight: '500' },
   input: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
+    color: colors.text,
   },
-  inputError: { borderColor: '#ff4d4d', backgroundColor: '#fff2f0' },
-  errorText: { color: '#ff4d4d', fontSize: 12, marginTop: 6 },
+  inputError: { borderColor: colors.danger, backgroundColor: colors.dangerSurface },
+  errorText: { color: colors.danger, fontSize: 12, marginTop: 6 },
   // 按鈕的基本樣式，包含背景色、內距、圓角、對齊方式，以及陰影效果
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.tint,
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
     elevation: 2,
-    shadowColor: '#007AFF',
+    shadowColor: colors.tint,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
   },
   // 新增：按鈕按下的縮放或顏色變化效果
   buttonPressed: {
-    backgroundColor: '#0056b3',
-    transform: [{ scale: 0.98 }], 
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
-  buttonDisabled: { backgroundColor: '#bae7ff' },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  buttonDisabled: { opacity: 0.5 },
+  buttonText: { color: colors.onTint, fontSize: 18, fontWeight: 'bold' },
   // 分隔線「或」的樣式
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#eee' },
-  dividerText: { marginHorizontal: 12, color: '#999', fontSize: 13 },
-  // Google 登入按鈕樣式：白底、灰色外框，符合 Google 品牌按鈕慣例
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { marginHorizontal: 12, color: colors.textSubtle, fontSize: 13 },
+  // Google 登入按鈕樣式：白底、灰色外框，符合 Google 品牌按鈕慣例（Google 品牌本身不隨主題切換）
   googleButton: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  googleButtonText: { color: '#333', fontSize: 16, fontWeight: '600' },
-  // LINE 品牌色 #06C755，比照 LINE 官方登入按鈕的視覺規範
+  googleButtonText: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  // LINE 品牌色 #06C755，比照 LINE 官方登入按鈕的視覺規範，不隨主題切換
   lineButton: {
     flexDirection: 'row',
     backgroundColor: '#06C755',
@@ -397,9 +402,9 @@ const styles = StyleSheet.create({
   lineButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Magic Link 連結樣式，比照 registerLink 的簡樸連結風格
   magicLinkLink: { marginTop: 16, alignItems: 'center' },
-  magicLinkText: { color: '#007AFF', fontSize: 14, fontWeight: '500' },
+  magicLinkText: { color: colors.tint, fontSize: 14, fontWeight: '500' },
   // Pressable 註冊連結的樣式，包含上邊距、對齊方式，以及文字顏色和字體大小, 沒背景色和外框
   registerLink: { marginTop: 20, alignItems: 'center' },
   // Pressable 註冊連結內文字的樣式，包含顏色、字體大小和字重，讓它看起來像個可點擊的連結
-  registerLinkText: { color: '#007AFF', fontSize: 14, fontWeight: '500' },
+  registerLinkText: { color: colors.tint, fontSize: 14, fontWeight: '500' },
 });
