@@ -192,6 +192,54 @@ export default function RootLayout() {
                   headerBackTitle: '返回'
                 }}
               />
+              {/* 堂食點餐流程：從 (tabs)/shop.tsx 的「到店點餐」入口導航進來，
+                  桌號 → 菜單 → 清單 → 送出結果 共 4 個畫面 */}
+              <Stack.Screen
+                name="dine-in/table"
+                options={{
+                  headerShown: true,
+                  title: '選擇桌號',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              <Stack.Screen
+                name="dine-in/menu"
+                options={{
+                  headerShown: true,
+                  title: '點餐菜單',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              <Stack.Screen
+                name="dine-in/cart"
+                options={{
+                  headerShown: true,
+                  title: '點餐清單',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              <Stack.Screen
+                name="dine-in/confirm"
+                options={{
+                  headerShown: true,
+                  title: '訂單確認',
+                  headerTitleAlign: 'center',
+                  headerLeft: () => null,
+                }}
+              />
+              {/* 堂食點餐歷史記錄詳情頁：從 (tabs)/coupons.tsx 的「我的點餐」區段點擊項目導航進來 */}
+              <Stack.Screen
+                name="dine-in/order/[id]"
+                options={{
+                  headerShown: true,
+                  title: '點餐詳情',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
             </Stack.Protected>
             <Stack.Protected guard={!userToken}>
               <Stack.Screen name="index" />
