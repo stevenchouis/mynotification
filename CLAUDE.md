@@ -84,6 +84,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 - **刻意不套用主題色、維持寫死色碼的例外**（全部有加註解說明原因）：Google（`#4285F4`）／LINE（`#06C755`）第三方登入按鈕的品牌色，改主題會違反品牌規範；`coupon/[id].tsx` 的 QR Code 白底，掃描器需要固定的黑白高對比，不能隨深色模式變灰；`home.tsx` 的 `BANNER_COPY`／Promo 輪播的粉彩色系，視為行銷內容資料而非 App 介面色，比照大部分 App 促銷輪播圖維持品牌一致外觀的做法。
 
+- **`app.json` 的 `expo-splash-screen` plugin** — 深色模式的 `backgroundColor` 已改成 `#1C1815`（對齊 `Colors.dark.background`），跟淺色模式的 `#ffffff`（對齊 `Colors.light.background`）一樣，讓原生 Splash、`components/FallbackSplash.tsx`（`app/_layout.tsx` 在字型/登入狀態還沒準備好時顯示的 JS 版 Splash，同樣透過 `useThemeColors()` 取色）、與真正的 App 內容三者背景色一致。**這是原生設定，只有重新 `eas build` 才會反映**，光 reload JS 不會生效。
+
 ### 路由（Expo Router 檔案式路由）
 
 - `app/_layout.tsx` — 根佈局。初始化 `QueryClient`、`GestureHandlerRootView` 與 `Toast`。啟動時透過 `useAuthStore.loadToken()` 從 SecureStore 讀取 JWT。`<Stack.Screen name="magic-login" />` 刻意放在 `userToken` 條件判斷**之外**，確保 Magic Link 的 deep link 不論登入狀態都能被導航到；依 `userToken` 狀態，用 `<Stack.Protected guard={...}>` 包住整組畫面來條件式渲染 `(drawer)` 群組（已登入）或 `index`/`register` 畫面（未登入）——**不要**改回 `{condition && <Stack.Screen />}` 的寫法，`condition` 為 `false` 時子元素會是布林值，Expo Router 的 Layout 子元素型別檢查會判定「不是 Screen」，在 console 狂噴 `Layout children must be of type Screen` 警告（雖然畫面沒問題，但每次重新 render 都再印一次）。同時設定全域的推播通知點擊監聽器，導向 `/inbox`（寫成不含路由群組前綴的純路徑，群組名稱本身不影響網址，之後群組怎麼調整巢狀層級都不用改這裡）。

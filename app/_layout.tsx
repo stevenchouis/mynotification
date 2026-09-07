@@ -15,6 +15,7 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -22,6 +23,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 // 1. 匯入你的 AuthStore
 import { useAuthStore } from '../store/useAuthStore';
+import FallbackSplash from '../components/FallbackSplash';
 import { Colors } from '../constants/Colors';
 import { useResolvedScheme } from '../hooks/useThemeColors';
 
@@ -62,6 +64,10 @@ const darkNavTheme: NavTheme = {
   },
 };
 
+// 原生 Splash 維持顯示，直到字型與登入狀態都準備好才手動關閉，避免字型/Token 還沒載完時
+// 先閃過一片空白（return null）畫面。必須在 module 層級呼叫，元件外只需執行一次。
+SplashScreen.preventAutoHideAsync();
+
 export default function RootLayout() {
   const router = useRouter();
   const scheme = useResolvedScheme();
@@ -97,9 +103,20 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, [router]);
 
-  // 5. 如果還在從本地儲存讀取 Token 中，或字型還沒載入完成，先回傳空畫面避免畫面閃爍
-  if (isLoading || !fontsLoaded) {
-    return null;
+  const isReady = fontsLoaded && !isLoading;
+
+  // 5. 字型與 Token 都準備好才關閉原生 Splash，畫面切換時已經是完整內容，不會露出空白
+  useEffect(() => {
+    if (isReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [isReady]);
+
+  // 6. 還沒準備好時渲染跟原生 Splash 外觀一致的畫面（而不是 return null），避免原生 Splash
+  // 關閉時機（尤其 Android 12+ 系統 Splash、或從背景恢復）跟這裡的 isReady 沒對齊時，
+  // 中間露出一段真正的空白畫面
+  if (!isReady) {
+    return <FallbackSplash />;
   }
 
   // 在 _layout.tsx 的回傳部分可以這樣優化
