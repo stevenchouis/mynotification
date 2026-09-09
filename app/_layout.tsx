@@ -95,7 +95,9 @@ export default function RootLayout() {
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
-      if (data.screen === "NotificationInbox") {
+      if (data.screen === "ProductDetail" && data.product_id) {
+        router.push(`/shop/${data.product_id}`);
+      } else if (data.screen === "NotificationInbox") {
         router.push('/inbox');
       }
     });

@@ -1,6 +1,7 @@
 import { FlashList } from "@shopify/flash-list";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { RectButton } from 'react-native-gesture-handler';
@@ -18,6 +19,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const NOTIFICATIONS_API = `${API_URL}/api/v1/notifications`;
 
 export default function InboxScreen() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -94,7 +96,12 @@ export default function InboxScreen() {
   const renderItem = ({ item }: { item: Notification }) => (
     <Swipeable renderRightActions={() => renderRightActions(item.id)}>
       <Pressable
-        onPress={() => !item.is_read && markAsReadMutation.mutate(item.id)}
+        onPress={() => {
+          if (!item.is_read) markAsReadMutation.mutate(item.id);
+          if (item.data?.screen === 'ProductDetail' && item.data.product_id) {
+            router.push(`/shop/${item.data.product_id}`);
+          }
+        }}
         style={({ pressed }) => [
           styles.itemContainer,
           { backgroundColor: item.is_read ? colors.background : colors.highlight },
