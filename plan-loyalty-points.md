@@ -114,6 +114,6 @@ flowchart TD
 - 前端不需要為這兩種禮遇另外做任何 UI——使用者就是在「紅利點數」明細畫面看到一筆 `reason` 為「新會員禮」或「生日禮」的 `earn` 紀錄
 
 ## Open questions
-目前沒有阻擋動工的未決問題。唯一需要在實作時留意、必要時回頭跟 `back-end` 確認的是上方 Scope 提到的 `reverse` 類型方向假設（訂單取消時「收回已賺點數」記成 `expire`、「退還已折抵點數」才是 `reverse`）——這個假設目前只影響明細畫面的 UI 呈現邏輯，不影響能不能開工。
+~~唯一需要在實作時留意的是 `reverse` 類型方向假設~~ **已於 2026-09-09 跟 `back-end` 定案**：原本規劃的單一 `reverse` type 拆成 `reverse_earn`（訂單取消收回已賺點數，固定負向）與 `reverse_redeem`（訂單取消/退款退還已折抵點數，固定正向）兩個獨立 type，維持「type 決定方向」的一致規則。前端已同步更新 `types/loyalty.ts`、`app/points.tsx` 的 `TX_DISPLAY` 與 CLAUDE.md；`back-end` 尚未有任何程式碼寫入這兩個 type（原 plan 就还沒實作），改名零成本。
 
 後端 API／Schema 方向已經跟 `back-end` 對齊定案（見上方「後端 API／Schema 參考」），這份 plan 已進入定案狀態，可以交給下一個 session 執行。

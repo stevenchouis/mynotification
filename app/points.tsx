@@ -1,7 +1,9 @@
 // app/points.tsx
 // 紅利點數畫面：餘額 + 收支明細，比照 app/coupon/[id].tsx 掛在 app/_layout.tsx 的
-// userToken 分支下（Stack.Screen，非 Tab）。4 種交易類型（earn/redeem/expire/reverse）
-// 的圖示/顏色/文案設計見 plan-loyalty-points.md 的 Scope 章節。
+// userToken 分支下（Stack.Screen，非 Tab）。5 種交易類型
+// （earn/redeem/expire/reverse_earn/reverse_redeem）的圖示/顏色/文案設計見
+// plan-loyalty-points.md 的 Scope 章節；reverse_earn/reverse_redeem 是跟 back-end
+// 確認後拆出來的（2026-09-09），每個 type 固定方向，不用額外判斷。
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -20,7 +22,8 @@ const TX_DISPLAY: Record<
   earn: { icon: 'add-circle-outline', sign: '+', colorKey: 'success', defaultReason: '消費回饋' },
   redeem: { icon: 'remove-circle-outline', sign: '-', colorKey: 'tint', defaultReason: '訂單折抵' },
   expire: { icon: 'time-outline', sign: '-', colorKey: 'textSubtle', defaultReason: '點數已過期' },
-  reverse: { icon: 'arrow-undo-outline', sign: '+', colorKey: 'accent', defaultReason: '訂單取消退還' },
+  reverse_earn: { icon: 'close-circle-outline', sign: '-', colorKey: 'textSubtle', defaultReason: '訂單取消收回點數' },
+  reverse_redeem: { icon: 'arrow-undo-outline', sign: '+', colorKey: 'accent', defaultReason: '訂單取消退還折抵' },
 };
 
 function TransactionRow({ tx, colors, styles }: { tx: LoyaltyTransaction; colors: ThemeColors; styles: ReturnType<typeof createStyles> }) {
