@@ -17,7 +17,8 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 // 1. 匯入你的 AuthStore
@@ -91,21 +92,95 @@ export default function RootLayout() {
     loadToken(); // App 一啟動就執行讀取本地 Token 的動作
   }, [loadToken]);
 
-  // 4. 處理通知監聽
+  // 3b. Android 通知頻道設定——沒有明確設定過的話，expo-notifications 第一次收到通知時
+  // 會自動建立一個 importance 較低（DEFAULT）的預設頻道，效果是「有聲音、但沒有橫幅彈出，
+  // 只有下拉通知中心才看得到」。要讓通知跳出橫幅（heads-up），channel importance 要設成 MAX/HIGH，
+  // 這件事只需要在 App 啟動時做一次即可（iOS 沒有 Notification Channel 概念，這段設定對它無效但也無害）
   useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data;
-      if (data.screen === "ProductDetail" && data.product_id) {
-        router.push(`/shop/${data.product_id}`);
-      } else if (data.screen === "NotificationInbox") {
-        router.push('/inbox');
-      }
-    });
-
-    return () => subscription.remove();
-  }, [router]);
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+      });
+    }
+  }, []);
 
   const isReady = fontsLoaded && !isLoading;
+
+  // App 完全關閉時被推播點擊冷啟動，JS bundle 載入完成的當下 isReady 通常還是 false
+  // （字型/Token 都還沒準備好，下面的 `if (!isReady)` 分支會 return <FallbackSplash />、
+  // Stack 導覽容器根本還沒掛載），這時候呼叫 router.push 會因為沒有掛載中的導覽容器而被無聲吞掉。
+  // 用 ref 記錄當下 isReady，讓 4. 的監聽器可以判斷「現在能不能直接導頁」而不是讀到 render 當下的舊值。
+  const isReadyRef = useRef(isReady);
+  useEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
+
+  const pendingNotificationDataRef = useRef<Record<string, any> | null>(null);
+  // getLastNotificationResponseAsync() 補查冷啟動情境時，可能跟 4. 的 listener 重複拿到同一則
+  // response（各平台行為不完全一致），用通知本身的 identifier 去重，避免同一則推播導頁/invalidate 兩次
+  const handledNotificationIdsRef = useRef<Set<string>>(new Set());
+
+  const navigateFromNotificationData = useCallback((data: Record<string, any>) => {
+    if (data.screen === "ProductDetail" && data.product_id) {
+      // 這則推播本來就是在通知「這個商品的資料變了」（到貨/降價），但商品詳情頁／商店列表／
+      // 我的收藏列表的 useQuery 都有全域 5 分鐘 staleTime，如果使用者剛好在那之內看過這個商品
+      // （例如剛收藏時），導頁進去可能還是吃到舊快取、看起來像沒更新——這裡明確 invalidate 一次
+      queryClient.invalidateQueries({ queryKey: ['shop-product', String(data.product_id)] });
+      queryClient.invalidateQueries({ queryKey: ['shop-products'] });
+      queryClient.invalidateQueries({ queryKey: ['shop-favorites'] });
+      router.push(`/shop/${data.product_id}`);
+    } else if (data.screen === "NotificationInbox") {
+      router.push('/inbox');
+    }
+  }, [router]);
+
+  const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse) => {
+    const id = response.notification.request.identifier;
+    if (handledNotificationIdsRef.current.has(id)) return;
+    handledNotificationIdsRef.current.add(id);
+
+    const data = response.notification.request.content.data;
+    console.log("點擊推播，收到的 data：", JSON.stringify(data));
+    // 點擊推播時 App 可能剛從背景/關閉狀態恢復，通知列表的快取可能已經過期
+    // （前景收到推播時是靠 (tabs)/_layout.tsx 的監聽器 invalidate，這裡是另一條路徑，要各自處理）
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+
+    if (isReadyRef.current) {
+      navigateFromNotificationData(data);
+    } else {
+      // Stack 還沒掛載，先記住導頁目標，等下面「isReady 轉 true」的 effect 補做
+      pendingNotificationDataRef.current = data;
+    }
+  }, [navigateFromNotificationData]);
+
+  // 4. 處理通知監聽：App 已在前景/背景執行時點擊推播
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    return () => subscription.remove();
+  }, [handleNotificationResponse]);
+
+  // 4b. 處理 App 完全關閉、被推播點擊冷啟動的情況——這種情況下啟動當下那次點擊不保證會被
+  // 上面的 listener 補到（listener 掛上的時間點可能晚於系統送出 response 事件），
+  // 官方文件建議額外用 getLastNotificationResponseAsync() 補查一次
+  useEffect(() => {
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response) {
+        handleNotificationResponse(response);
+      }
+    });
+  }, [handleNotificationResponse]);
+
+  // 4c. isReady 從 false 轉 true（字型/Token 都準備好、Stack 剛掛載完成）時，
+  // 補做冷啟動期間被暫存下來、當時無法導頁的那次點擊
+  useEffect(() => {
+    if (isReady && pendingNotificationDataRef.current) {
+      const data = pendingNotificationDataRef.current;
+      pendingNotificationDataRef.current = null;
+      navigateFromNotificationData(data);
+    }
+  }, [isReady, navigateFromNotificationData]);
 
   // 5. 字型與 Token 都準備好才關閉原生 Splash，畫面切換時已經是完整內容，不會露出空白
   useEffect(() => {

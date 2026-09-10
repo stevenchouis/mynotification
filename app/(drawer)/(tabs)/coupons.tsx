@@ -288,13 +288,23 @@ export default function MyScreen() {
           }
           renderItem={({ item, index }) => {
             const isLastInRow = (index + 1) % FAV_GRID_COLUMNS === 0;
+            const isOutOfStock = item.stock <= 0;
             return (
               <Pressable
                 style={[styles.favCard, { marginRight: isLastInRow ? 0 : FAV_GRID_GAP }]}
                 onPress={() => router.push({ pathname: '/shop/[id]', params: { id: String(item.id) } })}
               >
                 <View>
-                  <Image source={{ uri: item.thumbnail }} style={styles.favThumb} contentFit="cover" />
+                  <Image
+                    source={{ uri: item.thumbnail }}
+                    style={[styles.favThumb, isOutOfStock && styles.favThumbOutOfStock]}
+                    contentFit="cover"
+                  />
+                  {isOutOfStock && (
+                    <View style={styles.favOutOfStockBadge}>
+                      <Text style={styles.favOutOfStockBadgeText}>缺貨</Text>
+                    </View>
+                  )}
                   <Pressable
                     style={styles.favFavoriteButton}
                     onPress={() => toggleFavorite(item)}
@@ -305,6 +315,9 @@ export default function MyScreen() {
                 </View>
                 <Text style={styles.favTitle} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.favPrice}>${item.price}</Text>
+                <Text style={isOutOfStock ? styles.favStockTextOutOfStock : styles.favStockText}>
+                  {isOutOfStock ? '缺貨中' : `庫存：${item.stock}`}
+                </Text>
               </Pressable>
             );
           }}
@@ -349,10 +362,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   favCard: { width: FAV_CARD_WIDTH, marginBottom: FAV_GRID_GAP + 6 },
   favThumb: { width: FAV_CARD_WIDTH, height: FAV_CARD_WIDTH, borderRadius: 10, marginBottom: 8, backgroundColor: colors.surface },
+  favThumbOutOfStock: { opacity: 0.4 },
+  favOutOfStockBadge: {
+    position: 'absolute', left: 0, right: 0, top: '50%', marginTop: -12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  favOutOfStockBadgeText: {
+    color: colors.white, backgroundColor: 'rgba(0,0,0,0.6)', fontSize: 12, fontWeight: '700',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, overflow: 'hidden',
+  },
   favFavoriteButton: {
     position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13,
     backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center'
   },
   favTitle: { fontSize: 13, color: colors.text, fontWeight: '500', lineHeight: 18 },
   favPrice: { fontSize: 12, color: colors.textMuted, marginTop: 4, fontWeight: '600' },
+  favStockText: { fontSize: 11, color: colors.textSubtle, marginTop: 2 },
+  favStockTextOutOfStock: { fontSize: 11, color: colors.danger, marginTop: 2, fontWeight: '600' },
 });

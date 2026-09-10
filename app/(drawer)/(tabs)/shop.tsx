@@ -158,19 +158,40 @@ export default function ShopScreen() {
           </View>
         )
       }
+      // 捲到底的「已經到底了」提示，只有真的有商品可以捲的時候才顯示——
+      // 用 filteredProducts 而不是 isLoading/isError 判斷，避免跟 ListEmptyComponent 的訊息同時出現
+      ListFooterComponent={
+        filteredProducts.length > 0 ? (
+          <View style={styles.listFooter}>
+            <Ionicons name="checkmark-done-outline" size={18} color={colors.textSubtle} />
+            <Text style={styles.listFooterText}>以下沒有其他商品了</Text>
+          </View>
+        ) : null
+      }
       contentContainerStyle={styles.listContent}
       refreshing={isRefetching}
       onRefresh={refetch}
       renderItem={({ item, index }) => {
         const isLastInRow = (index + 1) % GRID_COLUMNS === 0;
         const isFavorite = favoriteIds.has(item.id);
+        const isOutOfStock = item.stock <= 0;
         return (
           <Pressable
             style={[styles.productCard, { marginRight: isLastInRow ? 0 : GRID_GAP }]}
             onPress={() => router.push({ pathname: '/shop/[id]', params: { id: String(item.id) } })}
           >
             <View>
-              <Image source={{ uri: item.thumbnail }} style={styles.productThumb} contentFit="cover" />
+              {/* 缺貨時圖片調暗，跟「缺貨」徽章一起提示，不用進商品詳情頁才看得出來 */}
+              <Image
+                source={{ uri: item.thumbnail }}
+                style={[styles.productThumb, isOutOfStock && styles.productThumbOutOfStock]}
+                contentFit="cover"
+              />
+              {isOutOfStock && (
+                <View style={styles.outOfStockBadge}>
+                  <Text style={styles.outOfStockBadgeText}>缺貨</Text>
+                </View>
+              )}
               <Pressable
                 style={styles.favoriteButton}
                 onPress={() => toggleFavorite(item)}
@@ -181,6 +202,9 @@ export default function ShopScreen() {
             </View>
             <Text style={styles.productTitle} numberOfLines={2}>{item.title}</Text>
             <Text style={styles.productPrice}>${item.price}</Text>
+            <Text style={isOutOfStock ? styles.productStockTextOutOfStock : styles.productStockText}>
+              {isOutOfStock ? '缺貨中' : `庫存：${item.stock}`}
+            </Text>
           </Pressable>
         );
       }}
@@ -223,13 +247,30 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   productCard: { width: GRID_CARD_WIDTH, marginBottom: GRID_GAP + 6 },
   productThumb: { width: GRID_CARD_WIDTH, height: GRID_CARD_WIDTH, borderRadius: 10, marginBottom: 8, backgroundColor: colors.surface },
+  productThumbOutOfStock: { opacity: 0.4 },
+  outOfStockBadge: {
+    position: 'absolute', left: 0, right: 0, top: '50%', marginTop: -12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  outOfStockBadgeText: {
+    color: colors.white, backgroundColor: 'rgba(0,0,0,0.6)', fontSize: 12, fontWeight: '700',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, overflow: 'hidden',
+  },
   favoriteButton: {
     position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13,
     backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center'
   },
   productTitle: { fontSize: 13, color: colors.text, fontWeight: '500', lineHeight: 18 },
   productPrice: { fontSize: 12, color: colors.textMuted, marginTop: 4, fontWeight: '600' },
+  productStockText: { fontSize: 11, color: colors.textSubtle, marginTop: 2 },
+  productStockTextOutOfStock: { fontSize: 11, color: colors.danger, marginTop: 2, fontWeight: '600' },
 
   emptyState: { paddingTop: 24, alignItems: 'center' },
   emptyStateText: { fontSize: 13, color: colors.textSubtle },
+
+  listFooter: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 20,
+  },
+  listFooterText: { fontSize: 12, color: colors.textSubtle },
 });

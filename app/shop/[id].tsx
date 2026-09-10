@@ -59,53 +59,76 @@ export default function ShopProductDetailScreen() {
   }
 
   const isFavorite = favoriteIds.has(product.id);
+  const isOutOfStock = product.stock <= 0;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View>
-        <Image source={{ uri: product.thumbnail }} style={styles.image} contentFit="cover" />
-        <Pressable
-          style={styles.favoriteButton}
-          onPress={() => toggleFavorite(product)}
-          hitSlop={8}
-        >
-          <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={isFavorite ? colors.danger : colors.textSubtle} />
-        </Pressable>
-      </View>
-      {/* Android edge-to-edge 下內容會畫到系統導覽列（手勢列或三按鈕列）後面，「加入購物車」
-          按鈕若貼著螢幕最下緣會被蓋住、容易誤觸；除了 insets.bottom 本身，再加一段固定緩衝
-          （32）確保視覺上跟系統列有明顯間距，不會看起來還是貼在一起 */}
-      <View style={[styles.body, { paddingBottom: insets.bottom + 32 }]}>
-        <Text style={styles.category}>{product.category}</Text>
-        <Text style={styles.title}>{product.title}</Text>
-        <Text style={styles.price}>${product.price}</Text>
-        <Text style={styles.description}>{product.description}</Text>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <View>
+          <Image source={{ uri: product.thumbnail }} style={styles.image} contentFit="cover" />
+          <Pressable
+            style={styles.favoriteButton}
+            onPress={() => toggleFavorite(product)}
+            hitSlop={8}
+          >
+            <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={isFavorite ? colors.danger : colors.textSubtle} />
+          </Pressable>
+        </View>
+        {/* 底部固定列（數量／加入購物車）另外估了高度墊在這裡，避免捲到底時最後一段文字被蓋住 */}
+        <View style={[styles.body, { paddingBottom: BOTTOM_BAR_ESTIMATED_HEIGHT + insets.bottom }]}>
+          <Text style={styles.category}>{product.category}</Text>
+          <Text style={styles.title}>{product.title}</Text>
+          <Text style={styles.price}>${product.price}</Text>
+          {isOutOfStock ? (
+            <Text style={styles.outOfStockText}>缺貨中</Text>
+          ) : (
+            <Text style={styles.stockText}>庫存：{product.stock}</Text>
+          )}
+          <Text style={styles.description}>{product.description}</Text>
+        </View>
+      </ScrollView>
 
-        <View style={styles.divider} />
-
-        <Text style={styles.label}>數量</Text>
+      {/* 數量／加入購物車固定浮動在畫面最下方（不隨內容捲動），永遠貼著安全區上緣，
+          不會被 Android edge-to-edge 的系統導覽列（手勢列或三按鈕列）蓋住 */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.stepperRow}>
           <Pressable
             style={styles.stepperButton}
             onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+            disabled={isOutOfStock}
           >
             <Ionicons name="remove" size={18} color={colors.text} />
           </Pressable>
           <Text style={styles.stepperValue}>{quantity}</Text>
-          <Pressable style={styles.stepperButton} onPress={() => setQuantity((q) => q + 1)}>
+          <Pressable
+            style={styles.stepperButton}
+            onPress={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+            disabled={isOutOfStock}
+          >
             <Ionicons name="add" size={18} color={colors.text} />
           </Pressable>
         </View>
 
-        <Pressable style={styles.addButton} onPress={onAddToCart}>
-          <Text style={styles.addButtonText}>{justAdded ? '已加入購物車' : '加入購物車'}</Text>
+        <Pressable
+          style={[styles.addButton, isOutOfStock && styles.addButtonDisabled]}
+          onPress={onAddToCart}
+          disabled={isOutOfStock}
+        >
+          <Text style={styles.addButtonText}>
+            {isOutOfStock ? '缺貨中' : justAdded ? '已加入購物車' : '加入購物車'}
+          </Text>
         </Pressable>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
+// 底部固定列的抓高估算值（上下 padding + 控制項高度），用來墊 ScrollView 內容的 paddingBottom，
+// 沒有用 onLayout 量實際高度是因為列內元素高度固定、不會動態變化，用估算值就夠準確、也更單純
+const BOTTOM_BAR_ESTIMATED_HEIGHT = 100;
+
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
   container: { backgroundColor: colors.background, flexGrow: 1 },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 24 },
   image: { width: '100%', aspectRatio: 1, backgroundColor: colors.surface },
@@ -117,19 +140,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   category: { fontSize: 12, color: colors.textSubtle, textTransform: 'capitalize' },
   title: { fontSize: 20, fontWeight: '600', color: colors.text, marginTop: 6 },
   price: { fontSize: 22, fontWeight: '700', color: colors.tint, marginTop: 8 },
+  stockText: { fontSize: 13, color: colors.textSubtle, marginTop: 4 },
+  outOfStockText: { fontSize: 13, color: colors.danger, fontWeight: '600', marginTop: 4 },
   description: { fontSize: 14, color: colors.textMuted, lineHeight: 20, marginTop: 12 },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 20 },
-  label: { fontSize: 14, color: colors.textMuted, marginBottom: 10, fontWeight: '600' },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
+  bottomBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 16,
+    paddingHorizontal: 20, paddingTop: 12,
+    backgroundColor: colors.background, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stepperButton: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
   },
   stepperValue: { fontSize: 16, fontWeight: '600', color: colors.text, minWidth: 24, textAlign: 'center' },
   addButton: {
-    backgroundColor: colors.tint, paddingVertical: 16, borderRadius: 12,
+    flex: 1, backgroundColor: colors.tint, paddingVertical: 16, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
+  addButtonDisabled: { backgroundColor: colors.textSubtle },
   addButtonText: { color: colors.onTint, fontSize: 16, fontWeight: 'bold' },
   errorText: { fontSize: 15, color: colors.danger, marginBottom: 16, textAlign: 'center' },
   button: {

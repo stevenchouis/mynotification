@@ -54,7 +54,7 @@ export default function TabLayout() {
         const { data: token } = await Notifications.getExpoPushTokenAsync();
         await axios.post(
           `${API_URL}/api/v1/users/push-tokens`,
-          { token, device_name: Platform.OS },
+          { token, device_name: Platform.OS, app_id: 'mynotification' },
           { headers: { Authorization: `Bearer ${userToken}` } }
         );
       } catch (e) {

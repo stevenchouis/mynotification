@@ -37,7 +37,8 @@ export async function completeLogin(accessToken: string) {
       `${API_URL}/api/v1/users/push-tokens`,
       {
         token: expoToken,
-        device_name: `${Platform.OS === 'ios' ? 'iPhone' : 'Android'} - ${Platform.Version}`
+        device_name: `${Platform.OS === 'ios' ? 'iPhone' : 'Android'} - ${Platform.Version}`,
+        app_id: 'mynotification',
       },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );

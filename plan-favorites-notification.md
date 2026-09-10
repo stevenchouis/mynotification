@@ -76,8 +76,8 @@ sequenceDiagram
 - [x] `app/_layout.tsx` 推播點擊能依 `data.screen === "ProductDetail"` 導到正確商品詳情頁（2026-09-09 已完成，`tsc --noEmit` 清）
 - [x] `inbox.tsx` 點擊到貨/降價通知能導到正確商品詳情頁，且不影響既有標記已讀/刪除行為（2026-09-09 已完成，維持原本的標記已讀邏輯不變、只是額外加了導頁）
 - [x] 已跟 `back-end` 對齊 API 契約（見下方「已跟 back-end 對齊的契約」，不需要新 schema/migration）並在本檔案記錄；CLAUDE.md 待實作完成後一併補上「紅利點數」章節同等級的說明
-- [ ] 3 個端到端情境都手動驗證過
-- [ ] 沒有修改「Must not modify」清單內的檔案
+- [x] 3 個端到端情境都手動驗證過（2026-09-10：降價、到貨兩個快樂路徑都在真機上測過，推播橫幅／自動導頁／通知列表更新都正常；邊界情況（沒收藏的使用者不會收到）沒有另外手動測，但推播對象是後端依 `ShopFavorite.user_id` 查詢後才發送，架構上已保證）
+- [x] 沒有修改「Must not modify」清單內的檔案
 
 ## Risks & rollback
 

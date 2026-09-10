@@ -6,6 +6,7 @@ export interface ShopProduct {
   description: string;
   category: string;
   price: number;
+  stock: number;
   thumbnail: string;
   images: string[];
 }
