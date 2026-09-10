@@ -130,7 +130,19 @@ export default function RootLayout() {
       queryClient.invalidateQueries({ queryKey: ['shop-product', String(data.product_id)] });
       queryClient.invalidateQueries({ queryKey: ['shop-products'] });
       queryClient.invalidateQueries({ queryKey: ['shop-favorites'] });
+      // 推播點擊是直接 push 一個新畫面到導覽堆疊最上面，底下墊的是 App 預設畫面（首頁），
+      // 不是「商店」分頁——使用者點返回鍵時體感會很奇怪（不是從哪裡來就回哪裡去）。
+      // 先補 push 一次商店分頁再疊上詳情頁，讓返回鍵能自然回到清單，而不是回首頁
+      router.push('/shop');
       router.push(`/shop/${data.product_id}`);
+    } else if (data.screen === "Coupons" && data.coupon_id) {
+      // 新會員歡迎禮券／生日禮券／管理者手動發券共用這個格式（見 CLAUDE.md）。
+      // 優惠券列表有 30 天內用過/過期即隱藏的邏輯，也有全域 staleTime，剛發的新券
+      // 可能還沒被抓進快取，直接導頁進去前先 invalidate 一次確保是最新資料
+      queryClient.invalidateQueries({ queryKey: ['myCoupons'] });
+      // 同樣先補 push 一次「我的」分頁（預設就是優惠券區塊），返回鍵才會回到清單而不是回首頁
+      router.push('/coupons');
+      router.push(`/coupon/${data.coupon_id}`);
     } else if (data.screen === "NotificationInbox") {
       router.push('/inbox');
     }

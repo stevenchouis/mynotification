@@ -100,6 +100,9 @@ export default function InboxScreen() {
           if (!item.is_read) markAsReadMutation.mutate(item.id);
           if (item.data?.screen === 'ProductDetail' && item.data.product_id) {
             router.push(`/shop/${item.data.product_id}`);
+          } else if (item.data?.screen === 'Coupons' && item.data.coupon_id) {
+            queryClient.invalidateQueries({ queryKey: ['myCoupons'] });
+            router.push(`/coupon/${item.data.coupon_id}`);
           }
         }}
         style={({ pressed }) => [
