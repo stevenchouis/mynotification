@@ -57,7 +57,8 @@ export default function DineInMenuScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
 
-  const tableNumber = useDineInOrderStore((state) => state.tableNumber);
+  const restaurantId = useDineInOrderStore((state) => state.restaurantId);
+  const tableCode = useDineInOrderStore((state) => state.tableCode);
   const items = useDineInOrderStore((state) => state.items);
   const addItem = useDineInOrderStore((state) => state.addItem);
   const updateQuantity = useDineInOrderStore((state) => state.updateQuantity);
@@ -65,9 +66,10 @@ export default function DineInMenuScreen() {
 
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
 
+  // 菜單是每間門市各自獨立（2026-09-10 跟使用者確認），依選定門市篩選
   const { data: menuItems = [], isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ['menu-items'],
-    queryFn: fetchMenu,
+    queryKey: ['menu-items', restaurantId],
+    queryFn: () => fetchMenu(restaurantId ?? undefined),
   });
 
   const availableItems = useMemo(() => menuItems.filter((item) => item.is_available), [menuItems]);
@@ -90,7 +92,7 @@ export default function DineInMenuScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.tableLabel}>桌號 {tableNumber}</Text>
+        <Text style={styles.tableLabel}>桌號 {tableCode}</Text>
         <Pressable style={styles.cartButton} onPress={() => router.push('/dine-in/cart')}>
           <Ionicons name="receipt-outline" size={22} color={colors.text} />
           {cartCount > 0 && (

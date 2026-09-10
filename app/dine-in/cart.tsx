@@ -23,7 +23,10 @@ export default function DineInCartScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
 
-  const tableNumber = useDineInOrderStore((state) => state.tableNumber);
+  const restaurantId = useDineInOrderStore((state) => state.restaurantId);
+  const restaurantName = useDineInOrderStore((state) => state.restaurantName);
+  const tableId = useDineInOrderStore((state) => state.tableId);
+  const tableCode = useDineInOrderStore((state) => state.tableCode);
   const items = useDineInOrderStore((state) => state.items);
   const updateQuantity = useDineInOrderStore((state) => state.updateQuantity);
   const removeItem = useDineInOrderStore((state) => state.removeItem);
@@ -52,6 +55,11 @@ export default function DineInCartScreen() {
       Alert.alert('提示', '請先加入品項再送出點餐');
       return;
     }
+    if (!tableId) {
+      Alert.alert('提示', '找不到桌號資訊，請重新選擇門市與桌號');
+      router.replace('/dine-in/restaurant');
+      return;
+    }
     const requestedPoints = Number(pointsInput) || 0;
     if (requestedPoints > maxRedeemablePoints) {
       Alert.alert('點數超過上限', `最多可折抵 ${maxRedeemablePoints} 點（受餘額與訂單金額 50% 上限限制）`);
@@ -60,7 +68,7 @@ export default function DineInCartScreen() {
     setIsSubmitting(true);
     try {
       const order = await submitDineInOrder(
-        tableNumber,
+        tableId,
         items.map((item) => ({ menu_item_id: item.menuItemId, quantity: item.quantity })),
         pointsToUse > 0 ? pointsToUse : undefined
       );
@@ -71,7 +79,7 @@ export default function DineInCartScreen() {
       queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
       router.replace({
         pathname: '/dine-in/confirm',
-        params: { orderId: String(order.id), tableNumber: order.table_number },
+        params: { orderId: String(order.id), tableNumber: tableCode },
       });
     } catch (error: any) {
       const status = error.response?.status;
@@ -105,8 +113,13 @@ export default function DineInCartScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.tableRow}>
-        <Text style={styles.tableLabel}>桌號 {tableNumber}</Text>
-        <Pressable onPress={() => router.push('/dine-in/table')}>
+        <Text style={styles.tableLabel}>{restaurantName}｜桌號 {tableCode}</Text>
+        <Pressable
+          onPress={() => router.push({
+            pathname: '/dine-in/table',
+            params: { restaurant_id: String(restaurantId), restaurant_name: restaurantName },
+          })}
+        >
           <Text style={styles.changeTableText}>更改桌號</Text>
         </Pressable>
       </View>

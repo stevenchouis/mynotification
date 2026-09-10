@@ -280,7 +280,17 @@ export default function RootLayout() {
                 }}
               />
               {/* 堂食點餐流程：從 (tabs)/shop.tsx 的「到店點餐」入口導航進來，
-                  桌號 → 菜單 → 清單 → 送出結果 共 4 個畫面 */}
+                  選餐廳 → 選桌號 → 菜單 → 清單 → 送出結果 共 5 個畫面（2026-09-10 多門市改版，
+                  新增「選餐廳」這一步，見 CLAUDE.md） */}
+              <Stack.Screen
+                name="dine-in/restaurant"
+                options={{
+                  headerShown: true,
+                  title: '選擇門市',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
               <Stack.Screen
                 name="dine-in/table"
                 options={{

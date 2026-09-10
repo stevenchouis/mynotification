@@ -1,6 +1,18 @@
 // types/dineIn.ts
 // 堂食點餐型別，跟 types/shop.ts（網購商店用）刻意分開，不共用。欄位對齊已跟 back-end
 // session 確認的 MenuItem／DineInOrder／DineInOrderItem 設計（見 plan-dine-in-order.md）。
+// Restaurant／DineInTable 是 2026-09-10 多門市功能新增，見 CLAUDE.md「多門市（Restaurant）」章節。
+export interface Restaurant {
+  id: number;
+  name: string;
+}
+
+export interface DineInTable {
+  id: number;
+  code: string;
+  restaurant_id: number;
+}
+
 export interface MenuItem {
   id: number;
   name: string;

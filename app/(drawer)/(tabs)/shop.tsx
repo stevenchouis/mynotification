@@ -46,7 +46,7 @@ function ShopHeader({
 
   return (
     <View>
-      <Pressable style={styles.dineInBanner} onPress={() => router.push('/dine-in/table')}>
+      <Pressable style={styles.dineInBanner} onPress={() => router.push('/dine-in/restaurant')}>
         <Ionicons name="restaurant" size={20} color={colors.onTint} />
         <Text style={styles.dineInBannerText}>到店點餐</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.onTint} />

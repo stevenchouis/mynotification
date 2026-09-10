@@ -132,6 +132,17 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 - **網購路徑「消費賺點數」尚未真正上線** — 要等 `Order.status` 變成 `paid`（ECPay 尚未串接，永遠停在 `pending`，見 `plan.md`），這塊只是前端邏輯先寫好、掛勾在既有的 `paid` 狀態轉換上；`app/order/[id].tsx` 的「本筆訂單賺到/折抵了多少點數」區塊用 `points_earned > 0 || points_used > 0` 才顯示，`pending` 訂單的 `points_earned` 會是 0，不會誤導使用者以為網購結帳當下就賺到點數。堂食路徑（`DineInOrder.status → completed`，店員 App 觸發）沒有這個限制，可以直接測試。
 - **`types/dineIn.ts` 補上的技術債** — `DineInOrderStatus` 原本只有 `'pending'`，但後端 `PATCH /dine-in-orders/{id}/status`（店員 App 專用）早就能把訂單標成 `'completed'`，這次順便補上 `'completed'` 值與「已完成」標籤，不然顧客端點餐紀錄遇到已完成訂單會顯示空白狀態文字。
 
+### 多門市（Restaurant）
+
+2026-09-10 跟 `back-end`／`staff` 三方討論後定案：既有堂食點餐流程假設「只有一間餐廳」（顧客手 key 自由文字桌號，沒有防呆），要支援多間門市。跨 session 確認的業務範圍：**菜單每間門市各自獨立**、**這次範圍只限堂食**（`Table`／`DineInOrder`／`MenuItem`，網購商店 `Product`/`Order` 不動）、**一個店員帳號只屬於一間門市**（`staff-scanner` 依 token 的 `restaurant_id` 自動 scope，不需要餐廳選擇器——這個簡化只限店員端，顧客端仍需選餐廳）、**現有測試桌位/點餐資料直接捨棄重建，不做遷移**。
+
+- **點餐流程改版**：原本「桌號 → 菜單 → 清單 → 送出結果」4 個畫面，改成「**選餐廳** → 選桌號 → 菜單 → 清單 → 送出結果」5 個畫面。新增 `app/dine-in/restaurant.tsx`（列出 `GET /restaurants`，選一間門市）；`app/dine-in/table.tsx` 從自由文字輸入框改成「從 `GET /restaurants/{id}/tables` 抓到的桌位清單選」，防呆（避免手打錯字/打到別間門市的桌號），**不顯示佔用狀態**（已跟使用者確認：這是既有 QR 掃碼流程的防呆備援，不是「找空桌」情境，加佔用狀態會牽出一整個新子系統，這次不做）。
+- **`store/useDineInOrderStore.ts`** — `tableNumber: string` 改成 `restaurantId`／`restaurantName`／`tableId`／`tableCode` 四個欄位，一定成對用 `setTable()` 一次設定（不單獨改其中一個）。`app/dine-in/restaurant.tsx`（取代原本 `table.tsx` 的角色）每次掛載都呼叫 `clear()`。
+- **桌牌 QR Code 深層連結格式改版** — 原本 `mynotification://dine-in/table?table=A3` 只帶桌號，改成 `mynotification://dine-in/table?restaurant_id=2&table_id=13`，同時帶門市與桌位 id（因為桌號 `code` 同名但不同門市會衝突）。`app/dine-in/table.tsx` 偵測到 `table_id` 參數時會跳過手動選擇清單，直接帶入並導去菜單頁。QR Code 產生端在 `staff-scanner`（`table-qr.tsx`），格式已跨 session 對齊。
+- **`services/dineIn.ts`** — 新增 `fetchRestaurants()`、`fetchRestaurantTables(restaurantId)`（皆公開端點，不需 JWT）；`fetchMenu(restaurantId?)` 加上可選的門市篩選；`submitDineInOrder` 第一個參數從 `tableNumber: string` 改成 `tableId: number`，body 送 `table_id`（後端仍相容舊的 `table_number` 自由文字，但 mynotification 已全面改用 `table_id`，不再送 `table_number`）。
+- **後端狀態（`back-end` 2026-09-10 回報）**：Phase 1（`Restaurant` 實體、`Table`/`MenuItem`/`User`/`DineInOrder` 皆加 `restaurant_id`，均 nullable 向下相容）已完成部署。Phase 2（前端開始送 `restaurant_id`/`table_id`，本次改版內容）進行中。Phase 3（後端把欄位從「可選」收緊成「強制」）尚未開始，會等兩邊前端都上線穩定後再排。
+- **未完成/待確認事項**：`staff-scanner` 桌位管理 UI 要能依餐廳新增/篩選桌位（他們主導）；店員帳號怎麼被指派到門市目前是純手動 DB 操作，跟 `role` 升級同一套慣例，沒有 App 內管理畫面；有沒有需要一個能跨門市管理的 `manager` 角色，目前判斷沒有實際使用情境、先不加。
+
 ### 狀態管理模式
 
 三個職責嚴格分離的 store：
@@ -177,6 +188,10 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | GET | `/api/v1/loyalty/me` | 取得目前使用者的紅利點數餘額，回傳 `{ balance }` |
 | GET | `/api/v1/loyalty/transactions` | 取得目前使用者的點數收支明細，新到舊，見「紅利點數」章節 |
 | POST | `/api/v1/orders`、`/api/v1/dine-in-orders` | body 新增可選欄位 `use_points`；點數餘額不足回 `409 { error_code: "insufficient_points" }`，超過 50% 折抵上限回 `400 { error_code: "points_cap_exceeded" }`，跟既有庫存不足的 `409`（`detail` 純文字）分開判斷，見「紅利點數」章節 |
+| GET | `/api/v1/restaurants` | 公開端點，不需登入，列出所有門市（`id`／`name`），見「多門市（Restaurant）」章節 |
+| GET | `/api/v1/restaurants/{id}/tables` | 公開端點，不需登入，列出該門市底下的桌位（`id`／`code`／`restaurant_id`），不帶佔用狀態 |
+| GET | `/api/v1/menu-items` | 可加 `?restaurant_id=` 依門市篩選菜單，不帶維持舊行為（回全部） |
+| POST | `/api/v1/dine-in-orders` | body 支援新的 `table_id`（會反查門市）或舊的 `table_number`（自由文字），至少要帶一個；mynotification 已全面改用 `table_id` |
 
 ### 表單驗證
 
