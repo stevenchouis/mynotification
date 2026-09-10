@@ -21,4 +21,7 @@ export interface LoyaltyTransaction {
   related_dine_in_order_id: number | null;
   created_at: string;
   expires_at: string | null; // 只有 type === 'earn' 才有值
+  // 2026-09-11 多門市功能新增，純記錄/報表用途——餘額仍是統一帳戶層級，不影響能不能折抵
+  // （見 CLAUDE.md「多門市」章節），堂食交易由後端從訂單的 table_id 反查門市自動帶入
+  restaurant_id?: number | null;
 }

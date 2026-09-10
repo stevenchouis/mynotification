@@ -10,10 +10,10 @@ import { ThemeColors } from '../../../constants/Colors';
 import { useShopFavorites } from '../../../hooks/useShopFavorites';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { api } from '../../../services/api'; //
-import { fetchMyDineInOrders } from '../../../services/dineIn';
+import { fetchMyDineInOrders, fetchRestaurants } from '../../../services/dineIn';
 import { fetchMyOrders } from '../../../services/shop';
 import { Coupon } from '../../../types';
-import { DINE_IN_ORDER_STATUS_LABEL, DineInOrder } from '../../../types/dineIn';
+import { DINE_IN_ORDER_STATUS_LABEL, DineInOrder, Restaurant } from '../../../types/dineIn';
 import { Order, ORDER_STATUS_LABEL, ShopProduct } from '../../../types/shop';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -68,6 +68,10 @@ export default function MyScreen() {
   const [section, setSection] = useState<Section>('coupons');
   const [filter, setFilter] = useState<FilterKey>('active');
   const { favorites, isLoading: isFavoritesLoading, toggleFavorite } = useShopFavorites();
+
+  // restaurant_id 是純記錄用途（多門市統一錢包，見 CLAUDE.md），有值代表這張券是特定門市發的，
+  // 用來在卡片顯示「限定門市」——沿用 ['restaurants']（跟 dine-in/restaurant.tsx 共用快取）查門市名稱
+  const { data: restaurants } = useQuery<Restaurant[]>({ queryKey: ['restaurants'], queryFn: fetchRestaurants });
 
   const { data: coupons, isLoading, isRefetching, refetch } = useQuery<Coupon[]>({
     queryKey: ['myCoupons'],
@@ -190,6 +194,9 @@ export default function MyScreen() {
               renderItem={({ item }) => {
                 const isDisabled = item.status !== 'active';
                 const statusText = item.status === 'used' ? '已使用' : item.status === 'expired' ? '已過期' : '待使用';
+                const restaurantName = item.restaurant_id != null
+                  ? restaurants?.find((r) => r.id === item.restaurant_id)?.name
+                  : null;
                 return (
                   <Pressable
                     style={({ pressed }) => [styles.card, isDisabled && styles.usedCard, pressed && !isDisabled && { opacity: 0.85 }]}
@@ -200,6 +207,9 @@ export default function MyScreen() {
                       <Text style={styles.title}>{item.title}</Text>
                       <Text style={styles.amount}>${item.discount_amount}</Text>
                     </View>
+                    {restaurantName && (
+                      <Text style={styles.restaurantBadge}>限定門市：{restaurantName}</Text>
+                    )}
                     <View style={styles.cardFooter}>
                       <Text style={styles.expiry}>
                         有效期至：{new Date(item.expired_at).toLocaleDateString('zh-TW')}
@@ -355,6 +365,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cardMain: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 16, fontWeight: 'bold', color: colors.text },
   amount: { fontSize: 24, fontWeight: '900', color: colors.danger },
+  restaurantBadge: { fontSize: 12, color: colors.tint, marginTop: 4 },
   cardFooter: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
   expiry: { fontSize: 12, color: colors.textMuted },
   status: { fontSize: 12, fontWeight: '600', color: colors.warning },

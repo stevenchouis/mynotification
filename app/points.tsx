@@ -14,9 +14,9 @@ import Text from '../components/Text';
 import { ThemeColors } from '../constants/Colors';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { fetchLoyaltyBalance, fetchLoyaltyTransactions } from '../services/loyalty';
-import { fetchMyDineInOrders } from '../services/dineIn';
+import { fetchMyDineInOrders, fetchRestaurants } from '../services/dineIn';
 import { fetchMyOrders } from '../services/shop';
-import { DineInOrder } from '../types/dineIn';
+import { DineInOrder, Restaurant } from '../types/dineIn';
 import { LoyaltyTransaction, LoyaltyTransactionType } from '../types/loyalty';
 import { Order } from '../types/shop';
 
@@ -32,9 +32,10 @@ const TX_DISPLAY: Record<
 };
 
 function TransactionRow({
-  tx, orderAmount, colors, styles,
+  tx, orderAmount, restaurantName, colors, styles,
 }: {
-  tx: LoyaltyTransaction; orderAmount: number | null; colors: ThemeColors; styles: ReturnType<typeof createStyles>;
+  tx: LoyaltyTransaction; orderAmount: number | null; restaurantName: string | null;
+  colors: ThemeColors; styles: ReturnType<typeof createStyles>;
 }) {
   const display = TX_DISPLAY[tx.type];
   const color = colors[display.colorKey] as string;
@@ -47,6 +48,9 @@ function TransactionRow({
         <Text style={styles.rowReason}>{reason}</Text>
         {orderAmount !== null && (
           <Text style={styles.rowOrderAmount}>消費金額：${orderAmount}</Text>
+        )}
+        {restaurantName && (
+          <Text style={styles.rowRestaurant}>門市：{restaurantName}</Text>
         )}
         <Text style={styles.rowDate}>{new Date(tx.created_at).toLocaleString('zh-TW')}</Text>
       </View>
@@ -79,6 +83,10 @@ export default function PointsScreen() {
   const { data: orders } = useQuery<Order[]>({ queryKey: ['my-orders'], queryFn: fetchMyOrders });
   const { data: dineInOrders } = useQuery<DineInOrder[]>({ queryKey: ['my-dine-in-orders'], queryFn: fetchMyDineInOrders });
 
+  // restaurant_id 是純記錄用途（多門市統一錢包，見 CLAUDE.md），只用來顯示這筆交易發生在哪間門市，
+  // 不影響餘額/折抵邏輯；沿用 ['restaurants']（跟 dine-in/restaurant.tsx 共用快取）查門市名稱
+  const { data: restaurants } = useQuery<Restaurant[]>({ queryKey: ['restaurants'], queryFn: fetchRestaurants });
+
   const orderAmountByTx = useCallback((tx: LoyaltyTransaction): number | null => {
     if (tx.related_order_id != null) {
       return orders?.find((o) => o.id === tx.related_order_id)?.total_amount ?? null;
@@ -88,6 +96,11 @@ export default function PointsScreen() {
     }
     return null;
   }, [orders, dineInOrders]);
+
+  const restaurantNameByTx = useCallback((tx: LoyaltyTransaction): string | null => {
+    if (tx.restaurant_id == null) return null;
+    return restaurants?.find((r) => r.id === tx.restaurant_id)?.name ?? null;
+  }, [restaurants]);
 
   // 點數餘額的變動來源（堂食訂單在 Staff App 被標記完成、網購訂單付款）都發生在
   // mynotification 以外的地方，沒有任何管道能主動通知這個畫面「該刷新了」，
@@ -128,7 +141,13 @@ export default function PointsScreen() {
             queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
           }}
           renderItem={({ item }) => (
-            <TransactionRow tx={item} orderAmount={orderAmountByTx(item)} colors={colors} styles={styles} />
+            <TransactionRow
+              tx={item}
+              orderAmount={orderAmountByTx(item)}
+              restaurantName={restaurantNameByTx(item)}
+              colors={colors}
+              styles={styles}
+            />
           )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -162,6 +181,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   rowInfo: { flex: 1 },
   rowReason: { fontSize: 14, color: colors.text, fontWeight: '500' },
   rowOrderAmount: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  rowRestaurant: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   rowDate: { fontSize: 11, color: colors.textSubtle, marginTop: 4 },
   rowAmount: { fontSize: 15, fontWeight: '700' },
 

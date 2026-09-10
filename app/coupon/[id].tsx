@@ -16,7 +16,9 @@ import Text from '../../components/Text';
 import { ThemeColors } from '../../constants/Colors';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { api } from '../../services/api';
+import { fetchRestaurants } from '../../services/dineIn';
 import { Coupon, RedeemCodeResponse } from '../../types';
+import { Restaurant } from '../../types/dineIn';
 
 export default function CouponDetailScreen() {
   const router = useRouter();
@@ -35,6 +37,12 @@ export default function CouponDetailScreen() {
   const coupon = coupons?.find((c) => c.id === Number(id));
   const isExpired = coupon ? new Date(coupon.expired_at).getTime() < Date.now() : false;
   const isUnusable = coupon ? coupon.is_used || isExpired : false;
+
+  // restaurant_id 是純記錄用途（多門市統一錢包，見 CLAUDE.md），有值代表這張券是特定門市發的
+  const { data: restaurants } = useQuery<Restaurant[]>({ queryKey: ['restaurants'], queryFn: fetchRestaurants });
+  const restaurantName = coupon?.restaurant_id != null
+    ? restaurants?.find((r) => r.id === coupon.restaurant_id)?.name
+    : null;
 
   const [redeemCode, setRedeemCode] = useState<RedeemCodeResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -110,6 +118,9 @@ export default function CouponDetailScreen() {
         <Text style={styles.couponExpiry}>
           有效期至：{new Date(coupon.expired_at).toLocaleDateString('zh-TW')}
         </Text>
+        {restaurantName && (
+          <Text style={styles.restaurantBadge}>限定門市：{restaurantName}</Text>
+        )}
       </View>
 
       {isUnusable ? (
@@ -150,6 +161,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   couponTitle: { fontSize: 18, fontWeight: '600', color: colors.text },
   couponAmount: { fontSize: 32, fontWeight: '900', color: colors.danger, marginTop: 6 },
   couponExpiry: { fontSize: 13, color: colors.textSubtle, marginTop: 6 },
+  restaurantBadge: { fontSize: 13, color: colors.tint, marginTop: 6 },
   codeSection: { width: '100%', alignItems: 'center' },
   // QR Code 需要黑白高對比才能被掃描器辨識，固定白底，不隨深色模式切換
   qrWrapper: { padding: 16, backgroundColor: '#fff', borderRadius: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, marginBottom: 16 },
