@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { createClient } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
@@ -49,6 +50,15 @@ export default function SettingsScreen() {
     queryFn: fetchLoyaltyBalance,
     enabled: !!userToken,
   });
+
+  // 點數餘額的變動來源（堂食訂單在 Staff App 被標記完成、網購訂單付款）都發生在
+  // mynotification 以外的地方，這裡比照 app/points.tsx 的做法，每次分頁重新取得焦點
+  // 就強制重新抓一次，不能只靠全域 staleTime 被動等過期
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+    }, [queryClient])
+  );
 
   // 2. 抓取使用者資料 (Server State)
   const { data: user, isLoading } = useQuery({

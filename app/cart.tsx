@@ -150,7 +150,9 @@ export default function CartScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 32 }]}>
         {maxRedeemablePoints > 0 && (
           <View style={styles.pointsRow}>
-            <Text style={styles.pointsLabel}>使用點數折抵（可用 {maxRedeemablePoints} 點）</Text>
+            <Text style={styles.pointsLabel}>
+              目前點數 {pointsBalance ?? 0} 點｜使用點數折抵（本筆可用 {maxRedeemablePoints} 點）
+            </Text>
             <View style={styles.pointsInputRow}>
               <TextInput
                 style={styles.pointsInput}

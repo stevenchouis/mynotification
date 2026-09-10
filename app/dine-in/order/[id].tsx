@@ -42,6 +42,7 @@ export default function DineInOrderDetailScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.summaryCard}>
+        <Text style={styles.orderIdText}>訂單編號：#{order.id}</Text>
         <Text style={styles.statusText}>{DINE_IN_ORDER_STATUS_LABEL[order.status]}</Text>
         <Text style={styles.totalAmount}>${order.total_amount}</Text>
         <Text style={styles.metaText}>桌號：{order.table_number}</Text>
@@ -79,7 +80,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   errorText: { fontSize: 15, color: colors.danger, textAlign: 'center' },
 
   summaryCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 20, marginBottom: 24 },
-  statusText: { fontSize: 14, color: colors.tint, fontWeight: '600' },
+  orderIdText: { fontSize: 12, color: colors.textSubtle },
+  statusText: { fontSize: 14, color: colors.tint, fontWeight: '600', marginTop: 4 },
   totalAmount: { fontSize: 28, fontWeight: '900', color: colors.text, marginTop: 6 },
   metaText: { fontSize: 12, color: colors.textSubtle, marginTop: 6 },
 

@@ -5,15 +5,20 @@
 // plan-loyalty-points.md 的 Scope 章節；reverse_earn/reverse_redeem 是跟 back-end
 // 確認後拆出來的（2026-09-09），每個 type 固定方向，不用額外判斷。
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
 import Text from '../components/Text';
 import { ThemeColors } from '../constants/Colors';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { fetchLoyaltyBalance, fetchLoyaltyTransactions } from '../services/loyalty';
+import { fetchMyDineInOrders } from '../services/dineIn';
+import { fetchMyOrders } from '../services/shop';
+import { DineInOrder } from '../types/dineIn';
 import { LoyaltyTransaction, LoyaltyTransactionType } from '../types/loyalty';
+import { Order } from '../types/shop';
 
 const TX_DISPLAY: Record<
   LoyaltyTransactionType,
@@ -26,7 +31,11 @@ const TX_DISPLAY: Record<
   reverse_redeem: { icon: 'arrow-undo-outline', sign: '+', colorKey: 'accent', defaultReason: '訂單取消退還折抵' },
 };
 
-function TransactionRow({ tx, colors, styles }: { tx: LoyaltyTransaction; colors: ThemeColors; styles: ReturnType<typeof createStyles> }) {
+function TransactionRow({
+  tx, orderAmount, colors, styles,
+}: {
+  tx: LoyaltyTransaction; orderAmount: number | null; colors: ThemeColors; styles: ReturnType<typeof createStyles>;
+}) {
   const display = TX_DISPLAY[tx.type];
   const color = colors[display.colorKey] as string;
   const reason = tx.type === 'expire' ? display.defaultReason : tx.reason || display.defaultReason;
@@ -36,6 +45,9 @@ function TransactionRow({ tx, colors, styles }: { tx: LoyaltyTransaction; colors
       <Ionicons name={display.icon} size={26} color={color} style={styles.rowIcon} />
       <View style={styles.rowInfo}>
         <Text style={styles.rowReason}>{reason}</Text>
+        {orderAmount !== null && (
+          <Text style={styles.rowOrderAmount}>消費金額：${orderAmount}</Text>
+        )}
         <Text style={styles.rowDate}>{new Date(tx.created_at).toLocaleString('zh-TW')}</Text>
       </View>
       <Text style={[styles.rowAmount, { color }]}>
@@ -49,15 +61,46 @@ export default function PointsScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const queryClient = useQueryClient();
+
   const { data: balance, isLoading: isBalanceLoading } = useQuery({
     queryKey: ['loyalty-balance'],
     queryFn: fetchLoyaltyBalance,
   });
 
-  const { data: transactions, isLoading: isTxLoading } = useQuery({
+  const { data: transactions, isLoading: isTxLoading, isRefetching, refetch } = useQuery({
     queryKey: ['loyalty-transactions'],
     queryFn: fetchLoyaltyTransactions,
   });
+
+  // 交易明細本身沒有帶消費金額欄位，只有 related_order_id／related_dine_in_order_id，
+  // 要顯示「消費金額」得回頭查對應的訂單——沿用 ['my-orders']／['my-dine-in-orders']
+  // 這兩個既有 query key（跟 order/[id].tsx、dine-in/order/[id].tsx 共用快取，不會重複打 API）
+  const { data: orders } = useQuery<Order[]>({ queryKey: ['my-orders'], queryFn: fetchMyOrders });
+  const { data: dineInOrders } = useQuery<DineInOrder[]>({ queryKey: ['my-dine-in-orders'], queryFn: fetchMyDineInOrders });
+
+  const orderAmountByTx = useCallback((tx: LoyaltyTransaction): number | null => {
+    if (tx.related_order_id != null) {
+      return orders?.find((o) => o.id === tx.related_order_id)?.total_amount ?? null;
+    }
+    if (tx.related_dine_in_order_id != null) {
+      return dineInOrders?.find((o) => o.id === tx.related_dine_in_order_id)?.total_amount ?? null;
+    }
+    return null;
+  }, [orders, dineInOrders]);
+
+  // 點數餘額的變動來源（堂食訂單在 Staff App 被標記完成、網購訂單付款）都發生在
+  // mynotification 以外的地方，沒有任何管道能主動通知這個畫面「該刷新了」，
+  // 所以改成每次畫面重新取得焦點（從別的畫面切回來）就強制重新抓一次，不能只靠
+  // 全域 staleTime 被動等過期
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['my-dine-in-orders'] });
+    }, [queryClient])
+  );
 
   return (
     <View style={styles.container}>
@@ -79,7 +122,14 @@ export default function PointsScreen() {
           data={transactions ?? []}
           keyExtractor={(tx) => String(tx.id)}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => <TransactionRow tx={item} colors={colors} styles={styles} />}
+          refreshing={isRefetching}
+          onRefresh={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+          }}
+          renderItem={({ item }) => (
+            <TransactionRow tx={item} orderAmount={orderAmountByTx(item)} colors={colors} styles={styles} />
+          )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="star-outline" size={40} color={colors.border} />
@@ -111,6 +161,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   rowIcon: { marginRight: 12 },
   rowInfo: { flex: 1 },
   rowReason: { fontSize: 14, color: colors.text, fontWeight: '500' },
+  rowOrderAmount: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   rowDate: { fontSize: 11, color: colors.textSubtle, marginTop: 4 },
   rowAmount: { fontSize: 15, fontWeight: '700' },
 

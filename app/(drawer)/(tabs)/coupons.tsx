@@ -262,7 +262,7 @@ export default function MyScreen() {
               onPress={() => router.push({ pathname: '/dine-in/order/[id]', params: { id: String(item.id) } })}
             >
               <View style={styles.cardMain}>
-                <Text style={styles.title}>桌號 {item.table_number}</Text>
+                <Text style={styles.title}>桌號 {item.table_number}（訂單 #{item.id}）</Text>
                 <Text style={styles.amount}>${item.total_amount}</Text>
               </View>
               <View style={styles.cardFooter}>
