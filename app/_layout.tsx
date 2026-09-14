@@ -143,6 +143,13 @@ export default function RootLayout() {
       // 同樣先補 push 一次「我的」分頁（預設就是優惠券區塊），返回鍵才會回到清單而不是回首頁
       router.push('/coupons');
       router.push(`/coupon/${data.coupon_id}`);
+    } else if (data.screen === "OrderDetail" && data.order_id) {
+      // 出貨推播（見 CLAUDE.md 網購出貨章節），data 還帶一個 type: "order_shipped"，
+      // 目前只有這一種來源會用到 OrderDetail，先不用另外判斷 type
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+      // 同樣先補 push 一次「我的」分頁（訂單清單所在位置）再疊上詳情頁，返回鍵才會回到清單
+      router.push('/coupons');
+      router.push(`/order/${data.order_id}`);
     } else if (data.screen === "NotificationInbox") {
       router.push('/inbox');
     }
@@ -289,6 +296,17 @@ export default function RootLayout() {
                   title: '訂單詳情',
                   headerTitleAlign: 'center',
                   headerBackTitle: '返回'
+                }}
+              />
+              {/* ECPay 結帳頁：從 cart.tsx 送出訂單成功後導航進來，WebView 顯示綠界收銀台，
+                  攔截付款完成後的 deep link 導回訂單詳情頁（見 CLAUDE.md ECPay 章節） */}
+              <Stack.Screen
+                name="checkout/[orderId]"
+                options={{
+                  headerShown: true,
+                  title: '付款',
+                  headerTitleAlign: 'center',
+                  headerLeft: () => null,
                 }}
               />
               {/* 堂食點餐流程：從 (tabs)/shop.tsx 的「到店點餐」入口導航進來，

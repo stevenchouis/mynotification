@@ -67,13 +67,8 @@ export default function CartScreen() {
       clear();
       setPointsInput('');
       queryClient.invalidateQueries({ queryKey: ['my-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
-      queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
-      Alert.alert(
-        '訂單已送出',
-        `訂單狀態：處理中（尚未完成付款）\n訂單編號：${order.merchant_trade_no}`,
-        [{ text: 'OK', onPress: () => router.replace('/coupons') }]
-      );
+      // 訂單建立成功（status=pending）後直接進 ECPay 結帳頁，付款完成/取消都會回到訂單詳情頁
+      router.replace(`/checkout/${order.id}`);
     } catch (error: any) {
       const status = error.response?.status;
       const detail = error.response?.data?.detail;

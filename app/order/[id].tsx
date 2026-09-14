@@ -1,10 +1,11 @@
 // app/order/[id].tsx
 // 訂單詳情頁：沿用 (tabs)/coupons.tsx「我的訂單」區段的 ['my-orders'] 快取，避免重複打 API
 // （比照 app/coupon/[id].tsx 沿用 ['myCoupons'] 快取的做法）；找不到快取時會自動 refetch。
-import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import Text from '../../components/Text';
 import { ThemeColors } from '../../constants/Colors';
@@ -15,6 +16,7 @@ import { Order, OrderStatus } from '../../types/shop';
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: '處理中（尚未完成付款）',
   paid: '已付款',
+  shipped: '已出貨',
   failed: '付款失敗',
   cancelled: '已取消',
 };
@@ -23,12 +25,23 @@ export default function OrderDetailScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
+  const queryClient = useQueryClient();
 
-  const { data: orders, isLoading } = useQuery<Order[]>({
+  const { data: orders, isLoading, isRefetching, refetch } = useQuery<Order[]>({
     queryKey: ['my-orders'],
     queryFn: fetchMyOrders,
   });
   const order = orders?.find((o) => o.id === Number(id));
+
+  // 訂單狀態的變動（ECPay 付款完成）來自後端的 Server-to-Server callback，跟使用者的
+  // WebView 被導回這個畫面幾乎同時發生、順序不保證——剛導頁進來時後端可能還沒處理完
+  // callback，這裡再次刷新才拿得到最新狀態，不能只靠 checkout 畫面導頁前那次 invalidate
+  // （比照 app/points.tsx 對同一類「外部狀態變動」問題的做法）
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+    }, [queryClient])
+  );
 
   if (isLoading) {
     return (
@@ -47,7 +60,10 @@ export default function OrderDetailScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+    >
       <View style={styles.summaryCard}>
         <Text style={styles.statusText}>{STATUS_LABEL[order.status]}</Text>
         <Text style={styles.totalAmount}>${order.total_amount}</Text>

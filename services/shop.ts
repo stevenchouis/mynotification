@@ -2,7 +2,7 @@
 // 自家後端商店 API，跟 services/products.ts（DummyJSON 展示頁用）刻意分開、不共用。
 // 商品清單一次抓全部（目前 194 筆，資料量小），分類/搜尋都在前端本機過濾，見 shop.tsx。
 import { api } from './api';
-import { Order, ShopProduct } from '../types/shop';
+import { CheckoutForm, Order, ShopProduct } from '../types/shop';
 
 export async function fetchShopProducts(): Promise<ShopProduct[]> {
   const res = await api.get('/api/v1/products');
@@ -27,6 +27,13 @@ export async function createOrder(
 
 export async function fetchMyOrders(): Promise<Order[]> {
   const res = await api.get('/api/v1/orders/me');
+  return res.data;
+}
+
+// ECPay 結帳：跟建立訂單（createOrder）分開呼叫，重叫這支不會重複扣庫存
+// （只允許對自己名下、status=pending 的訂單呼叫，見 CLAUDE.md ECPay 章節的跨 session 討論）
+export async function startOrderCheckout(orderId: number): Promise<CheckoutForm> {
+  const res = await api.post(`/api/v1/orders/${orderId}/checkout`);
   return res.data;
 }
 
