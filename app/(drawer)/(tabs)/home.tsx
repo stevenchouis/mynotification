@@ -69,7 +69,7 @@ async function fetchBannerImages(): Promise<string[]> {
   return data.products.map((p) => p.images?.[0]).filter((url): url is string => !!url);
 }
 
-const MARQUEE_TEXT = '🌿 新優惠券已上架　｜　會員日活動開跑　｜　感謝您使用 mynotification　｜　';
+const MARQUEE_TEXT = '🌿 新優惠券已上架　會員日活動開跑　感謝您使用 mynotification　';
 
 interface QuickAction {
   id: string;
@@ -152,12 +152,19 @@ function Marquee() {
 
   return (
     <View style={styles.marqueeContainer}>
-      <Animated.View style={[styles.marqueeTrack, animatedStyle]}>
-        <Text style={styles.marqueeText} onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)}>
-          {MARQUEE_TEXT}
-        </Text>
-        <Text style={styles.marqueeText}>{MARQUEE_TEXT}</Text>
-      </Animated.View>
+      <Ionicons name="megaphone" size={16} color={colors.onTint} style={styles.marqueeIcon} />
+      <View style={styles.marqueeTextClip}>
+        <Animated.View style={[styles.marqueeTrack, animatedStyle]}>
+          <Text
+            style={styles.marqueeText}
+            numberOfLines={1}
+            onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)}
+          >
+            {MARQUEE_TEXT}
+          </Text>
+          <Text style={styles.marqueeText} numberOfLines={1}>{MARQUEE_TEXT}</Text>
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -339,6 +346,8 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
 
   return (
     <View>
+      <Marquee />
+
       <Text style={styles.greeting}>歡迎回來</Text>
       <Text style={styles.greetingSubtitle}>今天也為生活留一點空白</Text>
 
@@ -372,8 +381,6 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
           ))}
         </View>
       </View>
-
-      <Marquee />
 
       <View style={styles.sectionTitleRow}>
         <View style={styles.sectionAccentBar} />
@@ -564,11 +571,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   promoSubtitle: { fontSize: 12, color: '#6B6558', marginTop: 2 },
 
   marqueeContainer: {
-    marginTop: 20, height: 36, borderRadius: 8, backgroundColor: colors.surface,
-    justifyContent: 'center', overflow: 'hidden'
+    marginBottom: 16, height: 40, borderRadius: 20, backgroundColor: colors.tint,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14
   },
+  marqueeIcon: { marginRight: 10 },
+  marqueeTextClip: { flex: 1, height: '100%', justifyContent: 'center', overflow: 'hidden' },
   marqueeTrack: { flexDirection: 'row' },
-  marqueeText: { fontSize: 13, color: colors.textMuted, paddingHorizontal: 4 },
+  marqueeText: { fontSize: 13, color: colors.onTint, paddingHorizontal: 4 },
 
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 12 },
   sectionAccentBar: { width: 4, height: 16, backgroundColor: colors.accent, borderRadius: 2, marginRight: 8 },
