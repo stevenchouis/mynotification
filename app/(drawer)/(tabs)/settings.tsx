@@ -6,7 +6,8 @@ import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import Text from '../../../components/Text';
@@ -38,6 +39,7 @@ export default function SettingsScreen() {
   const queryClient = useQueryClient();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const { logout, userToken } = useAuthStore();
   const resetNotifications = useNotificationStore(state => state.reset);
   const themeMode = useThemeModeStore((state) => state.mode);
@@ -171,7 +173,10 @@ const uploadToSupabase = async (uri: string) => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}
+    >
       <Text style={styles.title}>個人設定</Text>
 
       <View style={styles.profileCard}>
@@ -272,12 +277,16 @@ const uploadToSupabase = async (uri: string) => {
       </View>
 
       <Text style={styles.versionText}>版本號：1.0.3 (Android Blob Fix)</Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: colors.background },
+  // 2026-09-15：原本是 flex:1 的 View（不能捲動），內容較多的裝置/字型設定下會被
+  // 底部 Tab Bar 擋住看不到「登出系統」按鈕；改成 ScrollView，padding 移到
+  // contentContainerStyle 並疊加 insets.bottom（比照 app/cart.tsx 的處理方式）
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: colors.text },
   profileCard: {
     flexDirection: 'row',
