@@ -49,10 +49,13 @@ export default function DineInOrderDetailScreen() {
         <Text style={styles.metaText}>建立時間：{new Date(order.created_at).toLocaleString('zh-TW')}</Text>
       </View>
 
-      {(order.points_earned > 0 || order.points_used > 0) && (
+      {(order.coupon_discount > 0 || order.points_earned > 0 || order.points_used > 0) && (
         <View style={styles.pointsCard}>
+          {order.coupon_discount > 0 && (
+            <Text style={styles.pointsText}>本筆優惠券折抵 ${order.coupon_discount}</Text>
+          )}
           {order.points_used > 0 && (
-            <Text style={styles.pointsText}>本筆折抵 {order.points_used} 點</Text>
+            <Text style={styles.pointsText}>本筆點數折抵 {order.points_used} 點</Text>
           )}
           {order.points_earned > 0 && (
             <Text style={styles.pointsText}>本筆賺得 {order.points_earned} 點</Text>

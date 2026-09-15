@@ -50,4 +50,8 @@ export interface DineInOrder {
   created_at: string;
   points_earned: number;
   points_used: number;
+  // 優惠券線上折抵（2026-09-15，見 plan-coupon-checkout-discount.md），跟 use_points 平行：
+  // coupon_id 有值代表這筆訂單用了哪張券，coupon_discount 是實際折抵的金額
+  coupon_id: number | null;
+  coupon_discount: number;
 }

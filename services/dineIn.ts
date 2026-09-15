@@ -31,12 +31,14 @@ export async function fetchMenu(restaurantId?: number): Promise<MenuItem[]> {
 export async function submitDineInOrder(
   tableId: number,
   items: { menu_item_id: number; quantity: number }[],
-  usePoints?: number
+  usePoints?: number,
+  couponId?: number
 ): Promise<DineInOrder> {
   const res = await api.post('/api/v1/dine-in-orders', {
     table_id: tableId,
     items,
     ...(usePoints ? { use_points: usePoints } : {}),
+    ...(couponId ? { coupon_id: couponId } : {}),
   });
   return res.data;
 }

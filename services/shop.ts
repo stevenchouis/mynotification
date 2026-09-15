@@ -16,11 +16,13 @@ export async function fetchShopProductById(id: number): Promise<ShopProduct> {
 
 export async function createOrder(
   items: { product_id: number; quantity: number }[],
-  usePoints?: number
+  usePoints?: number,
+  couponId?: number
 ): Promise<Order> {
   const res = await api.post('/api/v1/orders', {
     items,
     ...(usePoints ? { use_points: usePoints } : {}),
+    ...(couponId ? { coupon_id: couponId } : {}),
   });
   return res.data;
 }
@@ -34,6 +36,14 @@ export async function fetchMyOrders(): Promise<Order[]> {
 // （只允許對自己名下、status=pending 的訂單呼叫，見 CLAUDE.md ECPay 章節的跨 session 討論）
 export async function startOrderCheckout(orderId: number): Promise<CheckoutForm> {
   const res = await api.post(`/api/v1/orders/${orderId}/checkout`);
+  return res.data;
+}
+
+// 取消訂單（2026-09-15，見 plan-coupon-checkout-discount.md 的實機測試 bug）：僅限自己名下、
+// status=pending 的訂單，後端會在同一個 transaction 內把庫存加回去、優惠券 is_used 改回
+// False、退還已折抵的點數（reverse_redeem），成功回應完整 Order（status 已經是 cancelled）
+export async function cancelOrder(orderId: number): Promise<Order> {
+  const res = await api.post(`/api/v1/orders/${orderId}/cancel`);
   return res.data;
 }
 
