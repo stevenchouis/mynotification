@@ -1,92 +1,88 @@
-# Plan: 商品搜尋功能
+# Plan：商店搜尋加強（shop.tsx）
+
+> **2026-09-15 改版說明（含一次規劃過程中的更正）**：這份 plan 原本規劃的是幫首頁（`home.tsx`）的 DummyJSON 展示用商品輪播/Grid 做一個獨立搜尋頁（含最近搜尋記錄、熱門標籤）。規劃當下誤以為這個舊版規劃「從沒真的做」，因而先改成只講「加強真商店 `shop.tsx` 搜尋」——**這個前提是錯的**：`app/search.tsx` 其實早在 2026-09-06（commit `7b50bd1`）就已經完整實作並上線，首頁搜尋列（`home.tsx`）本來就會 push 過去，debounce／最近搜尋（`store/useSearchHistoryStore.ts`）／熱門標籤（`services/search.ts`）全部都在跑，不是空白待辦。這次改版動工時才發現這個落差（見下方教訓）。
+>
+> 實際定案：**首頁展示頁的獨立搜尋頁維持原樣，不動**；這份 plan 現在單純是「另外*加強*真商店 `shop.tsx` 既有的陽春搜尋列（只比對標題、無最近搜尋/熱門標籤）」，兩個搜尋頁面並存、服務不同商品系統（展示 vs. 真的可買），**共用同一份 `useSearchHistoryStore`／`fetchSearchSuggestions`**，不重複造一份。下面的 mermaid/Scope 都是這個「加強 shop.tsx」的範圍，不涉及 `app/search.tsx`。
+>
+> **教訓**：規劃時判斷「這個功能做了沒」，一定要先用檔名/內容直接 grep repo（`find`/`grep` 全專案，不是只查自己以為相關的幾個檔名），不能只憑對話記憶或部分檢查就下結論——這是今天第二次犯這類錯誤（backlog.md 那次也是），且這次差點造成實際程式碼損壞（動工時 `Write` 直接覆蓋掉已存在、正在被 `app/search.tsx` 使用的 `store/useSearchHistoryStore.ts`／`services/search.ts`，改動了介面名稱跟回傳型別，導致既有搜尋頁編譯失敗；已用 `git checkout` 復原兩個檔案並改成沿用原本介面）。
 
 ## Goal
-使用者（App 的一般消費者）目前在首頁只能靠「商品分類標籤」瀏覽或滑到隨機洗牌出的 12 筆商品，找不到直接用關鍵字搜商品的方式。這個功能要讓使用者在首頁頂部點一個搜尋列，進到一個獨立的搜尋頁面：可以打字即時（debounce）搜尋 DummyJSON 商品、看到自己最近搜尋過的關鍵字（存在裝置本機）、以及後端資料庫提供的「熱門搜尋/推薦標籤」（點一下直接帶入該關鍵字查詢）。完成的定義：首頁有可點擊的搜尋列 → 進到 `app/search.tsx` → 打字 400ms 後自動出現搜尋結果 Grid；沒打字時看得到最近搜尋記錄（可清除）跟熱門搜尋標籤；熱門標籤內容來自後端 API，不是寫死在前端。
+
+`shop.tsx` 現有的搜尋列只比對商品標題（`product.title.toLowerCase().includes(keyword)`），沒有比對商品描述、沒有最近搜尋記錄、也沒有熱門搜尋建議，使用者要嘛得完全打對關鍵字，要嘛得自己滑分類標籤找。這次要讓搜尋更好用：比對範圍加上商品描述、聚焦搜尋列時顯示「最近搜尋」（裝置本機）與「熱門搜尋」（後端 `GET /api/v1/search/suggestions`，2026-09-15 確認已上線）標籤，點擊任一個標籤直接帶入該關鍵字並套用篩選。完成的定義：搜尋列比對標題+描述；點擊/聚焦搜尋列時看到最近搜尋（可清除、最多留 10 筆）與熱門搜尋標籤；點擊任一標籤立即套用篩選並收起建議面板；後端熱門標籤 API 失敗或回空陣列時整個熱門標籤區塊優雅隱藏，不影響其餘搜尋功能。
+
+**跟原本 DummyJSON 版規劃的關鍵差異**：這裡是本機即時過濾已抓到的資料（`useMemo`），不是每次打字都呼叫 API，所以**不需要 debounce**——這比原本設計簡單，直接在既有 `filteredProducts` 的 `useMemo` 邏輯上擴充比對欄位即可。
 
 ## Architecture / flow
 
 ```mermaid
 flowchart TD
-    SearchEntry[home.tsx 搜尋列 Pressable] -->|router.push /search| SearchScreen[app/search.tsx]
+    SearchBar[shop.tsx ShopHeader\n搜尋列 TextInput] -->|onFocus 且 query 為空| Suggestions[建議面板\nAbsolute 定位於搜尋列下方]
+    Suggestions --> RecentSection[最近搜尋 chips]
+    Suggestions --> HotSection[熱門搜尋 chips]
+    RecentSection <-->|讀寫，最多 10 筆| HistoryStore[(useSearchHistoryStore\nSecureStore persist)]
+    HotSection -->|useQuery keyword/sort_order/is_active| SuggestionsAPI[GET /api/v1/search/suggestions\n已上線，2026-09-15 back-end 確認]
+    SearchBar -->|輸入文字時| FilteredProducts[filteredProducts useMemo\n比對 title + description]
+    RecentSection -->|點擊帶入關鍵字| SearchBar
+    HotSection -->|點擊帶入關鍵字| SearchBar
+    FilteredProducts --> Grid[FlashList 商品 Grid\n既有元件，不改]
 
-    subgraph SearchScreenDetail["app/search.tsx"]
-        Input[TextInput\ndebounce 400ms]
-        History[最近搜尋 chips]
-        HotTags[熱門搜尋 chips]
-        ResultGrid[搜尋結果 FlashList Grid]
-    end
-
-    SearchScreen --> Input
-    SearchScreen --> History
-    SearchScreen --> HotTags
-    SearchScreen --> ResultGrid
-
-    Input -->|searchProducts query| ResultGrid
-    History -->|點擊帶入關鍵字| Input
-    HotTags -->|點擊帶入關鍵字| Input
-    ResultGrid -->|GET /products/search?q=| DummyJSON[(DummyJSON 公開 API)]
-    History <-->|讀寫| HistoryStore[(useSearchHistoryStore\nSecureStore persist)]
-    HotTags -->|fetchSearchSuggestions\nGET /api/v1/search/suggestions| BackendAPI[/後端 API\n待 back-end session 建立/]
-    BackendAPI -.對應資料表.-> BackendDB[(後端 DB)]
-
-    style SearchEntry fill:#dff0d8,stroke:#3c763d
-    style SearchScreen fill:#dff0d8,stroke:#3c763d
-    style Input fill:#dff0d8,stroke:#3c763d
-    style History fill:#dff0d8,stroke:#3c763d
-    style HotTags fill:#dff0d8,stroke:#3c763d
-    style ResultGrid fill:#dff0d8,stroke:#3c763d
+    style SearchBar fill:#dff0d8,stroke:#3c763d
+    style Suggestions fill:#dff0d8,stroke:#3c763d
+    style RecentSection fill:#dff0d8,stroke:#3c763d
+    style HotSection fill:#dff0d8,stroke:#3c763d
+    style FilteredProducts fill:#dff0d8,stroke:#3c763d
     style HistoryStore fill:#dff0d8,stroke:#3c763d
 ```
 
 ## Scope
 
 ### May modify
-- `app/(drawer)/(tabs)/home.tsx`（新增可點擊的搜尋列，放在問候語與小輪播之間，`router.push('/search')`）
-- `app/search.tsx`（新檔案：搜尋頁面，含輸入框、最近搜尋、熱門標籤、搜尋結果 Grid）
-- `app/_layout.tsx`（新增 `Stack.Screen name="search"`，`headerShown: true`、`title: '搜尋商品'`，比照 `coupon/[id]` 的寫法）
-- `store/useSearchHistoryStore.ts`（新檔案：比照 `useFavoritesStore.ts` 的 persist 寫法，本機存最近搜尋關鍵字）
-- `services/products.ts`（新增 `searchProducts(query)`，打 DummyJSON `/products/search?q=`）
-- `services/search.ts`（新檔案：`fetchSearchSuggestions()`，透過 `services/api.ts` 的 `api` 實例打後端熱門搜尋 API；後端 API 還沒好之前先回傳/使用前端 fallback 陣列，不擋住這版上線）
+- `app/(drawer)/(tabs)/shop.tsx`（`ShopHeader` 元件新增聚焦時的建議面板 UI；`filteredProducts` 的 `useMemo` 比對範圍加上 `product.description`）
+- `store/useSearchHistoryStore.ts`、`services/search.ts`（**既有檔案，2026-09-06 已隨 `app/search.tsx` 建立，不是新檔案**——`shop.tsx` 直接 import 沿用同一份 `useSearchHistoryStore`（`keywords`/`addKeyword`/`clearHistory`）與 `fetchSearchSuggestions()`，兩邊「最近搜尋」是同一份清單、熱門標籤是同一份後端資料，不另外拆一份給商店頁專用）
 
 ### Must not modify
-- `services/api.ts`（沿用現有攔截器，不改動）
-- `store/useFavoritesStore.ts`、`store/useAuthStore.ts`、`store/useNotificationStore.ts`
-- 其他既有畫面（`favorites.tsx`／`coupons.tsx`／`inbox.tsx`／`settings.tsx` 等）
-- 後端程式碼（不在這個 repo，需要的新 API 由 `back-end` session 負責，這裡只消費）
+- `app/(drawer)/(tabs)/home.tsx`、`services/products.ts`（首頁 DummyJSON 展示頁完全不碰，這次改版的教訓就是不要混到這個系統）
+- `services/api.ts`（沿用現有攔截器）
+- `store/useFavoritesStore.ts`、`store/useCartStore.ts`
+- `services/shop.ts` 的 `fetchShopProducts`（資料抓取邏輯不變，一次抓全部、本機過濾的架構維持不變）
+- 商品 Grid 卡片本身（`renderItem`/收藏愛心按鈕等）不動，只動 `ShopHeader` 跟過濾邏輯
 
 ## Existing patterns to follow
-- 搜尋結果 Grid 比照 `home.tsx` 的 `GRID_COLUMNS = 3` FlashList 卡片版面（`productCard`/`productThumb`/`productTitle`/`productPrice` 那組 style，可以直接複用邏輯、不用整個複製貼上）
 - 最近搜尋記錄比照 `store/useFavoritesStore.ts`：`persist` middleware + `expo-secure-store` 當 storage backend，同一個 `secureJSONStorage` 寫法
-- 熱門搜尋走後端 API 這件事，資料表設計比照 `plan.md`（首頁 promo banner）裡討論過的「營運可控坑位」思路：一張通用表，欄位大致是 `keyword`、`sort_order`、`is_active`，API 回傳依排序、啟用中的清單
-- 頁面導航統一用 `router.push('/search')`（不含路由群組前綴），比照 `settings.tsx` 既有寫法；`app/search.tsx` 放在根目錄（不在 `(drawer)` 群組內），跟 `coupon/[id].tsx`／`register.tsx` 一樣屬於 `app/_layout.tsx` 的 `Stack.Screen`，這樣可以拿到原生的返回箭頭，不會重演之前 Drawer 頁面「進去後回不去」的問題
-- 搜尋 API 呼叫用 debounce（開一個 400ms 的 `useEffect` + `setTimeout` 或簡單的 debounce hook），避免使用者每打一個字就發一次 request
+- 熱門標籤資料表設計沿用 back-end 已經上線的 `keyword`/`sort_order`/`is_active` 結構（跟 `plan.md` 討論過的「營運可控坑位」通用表思路一致），前端只消費、排序照後端回傳順序
+- 建議面板的聚焦顯示/收起邏輯，比照 `home.tsx` 或其他既有畫面用 `useState` 管理 UI 狀態的簡單模式，不需要額外的動畫套件（可以先用簡單的條件渲染，之後想加 fade in/out 再用 Reanimated，不是這次必要項目）
+- 熱門標籤 API 失敗保護比照現有畫面對外部 API 失敗的處理方式（例如 `PromoCarousel` 圖片抓取失敗時的優雅降級），這裡是直接把整個熱門標籤區塊隱藏（`data.length === 0` 或 `isError` 時 `return null`），不影響最近搜尋跟商品 Grid
 
 ## Constraints
-- 不新增第三方套件（`debounce` 自己用 `setTimeout`/`useEffect` 刻，不用另外裝 lodash）
-- DummyJSON 的 `/products/search` 是公開測試 API，純展示用，跟自家後端商品資料無關（跟首頁現況一致）
-- 熱門搜尋標籤如果後端 API 還沒準備好，要有前端 fallback（例如幾個固定關鍵字），不能讓搜尋頁因為這支 API 失敗就整頁壞掉
-- 最近搜尋記錄只存在裝置本機，不同步後端，數量上限建議 10 筆、避免無限累積
+- 不新增第三方套件（chips/tag UI 直接用現有的 `Pressable` + `StyleSheet`，比照 `home.tsx` 商品分類標籤的樣式）
+- 熱門搜尋標籤資料表目前應該是空的（back-end 確認沒有後台 CRUD，要手動 insert 測試資料）——開發時如果看到空陣列是正常現象，不是 API 壞掉，back-end 那邊會先塞幾筆測試關鍵字方便驗證
+- 最近搜尋記錄只存裝置本機，不同步後端，上限 10 筆
+- 比對範圍加 `description` 後，如果搜尋結果變得太寬泛（例如常見字出現在很多商品描述裡），先不特別處理排序權重（標題比對 > 描述比對），這次只求「找得到」，排序精細化留到之後有需要再做
 
 ## Verification
 - 3 個端對端測試（手動操作，肉眼確認）：
-  1. Happy path：首頁點搜尋列 → 進到搜尋頁 → 打「shirt」等 3 秒內不用按任何按鈕就看到結果 Grid 出現 → 點其中一張商品卡（若有串到詳情頁的話）或至少確認資料正確顯示
-  2. 最近搜尋：搜尋兩三個不同關鍵字後回到搜尋頁空白狀態，確認「最近搜尋」有依時間新到舊列出，點一下能直接帶入該關鍵字並觸發搜尋
-  3. 熱門標籤失敗保護：暫時把 `fetchSearchSuggestions` 的後端網址改錯（或斷網測試後端那段），確認熱門標籤區塊優雅降級（顯示 fallback 或直接不顯示），不會讓整個搜尋頁白屏
-- 手動驗證：實機打幾個中英文關鍵字（含查無結果的關鍵字），確認空結果狀態文案正常
+  1. Happy path：點擊搜尋列（尚未打字）→ 看到最近搜尋（如果有）+ 熱門標籤 → 點一個熱門標籤 → 立即套用篩選、建議面板收起、Grid 顯示對應結果
+  2. 描述比對：搜一個只出現在某商品「描述」但不在「標題」裡的關鍵字，確認該商品有出現在結果中（驗證比對範圍真的擴大了，不是只改了 UI）
+  3. 最近搜尋：搜尋兩三個不同關鍵字後清空搜尋列，確認「最近搜尋」依時間新到舊列出、有清除功能、上限 10 筆時最舊的會被擠掉
+- 手動驗證：熱門標籤資料表為空時（目前應該就是這個狀態），確認熱門標籤區塊正確隱藏、不噴錯誤、不留空白區塊
 - 不涉及長時間執行流程，不需要額外的 stress test
 
 ## Done definition
-- [ ] 首頁新增可點擊的搜尋列，點擊後導向 `/search`
-- [ ] `/search` 頁面：debounce 400ms 即時搜尋 DummyJSON 商品，結果用 3 欄 Grid 呈現
-- [ ] 最近搜尋記錄存在本機（`useSearchHistoryStore`），可點擊帶入、有上限
-- [ ] 熱門搜尋標籤來自後端 API（`services/search.ts`），API 尚未就緒時有 fallback，不會讓頁面壞掉
-- [ ] 已跟 `back-end` session 溝通熱門搜尋 API 的契約（路徑、回傳格式、資料表欄位）
-- [ ] PR/commit 說明正確標示 AI 協作
+- [x] `shop.tsx` 搜尋比對範圍擴大到商品描述
+- [x] 聚焦搜尋列時顯示最近搜尋（本機、可清除、上限 10 筆）
+- [x] 聚焦搜尋列時顯示熱門搜尋標籤（後端 API，失敗/空陣列時優雅隱藏）
+- [x] 點擊最近搜尋/熱門標籤任一個都能立即帶入關鍵字並套用篩選
+- [x] 首頁 DummyJSON 展示頁完全沒被改動
+- [x] 3 個端對端測試都通過——2026-09-15 使用者實機確認 TEST OK
+- [ ] PR/commit 說明正確標示 AI 協作——尚未 commit
+
+## 補充（2026-09-15，跟這份 plan 間接相關）——已解決
+熱門搜尋標籤原本的 6 筆資料（沐浴乳／收納盒／文具／廚房用品／香氛／寢具）跟實際英文商品標題對不上、點了搜不到結果。已請 back-end 改成 iPhone／MacBook／Samsung／Huawei／Watch／Shoes，back-end 已更新並用 `Product.title ILIKE` 核對過都有實際匹配（7/1/5/1/5/4 筆），`GET /api/v1/search/suggestions` 現在回傳這 6 筆。待實機在 `shop.tsx`／`app/search.tsx` 各點一輪確認顯示正常。
 
 ## Risks & rollback
-- 風險：後端熱門搜尋 API 由另一個 session 負責，時程不受控——用 fallback 陣列解耦，前端這版可以先上線，之後 API 好了再串正式資料，不會互相卡進度
-- 風險：DummyJSON 是公開測試服務，`/products/search` 之後如果改版或降速，會直接影響搜尋體驗——跟首頁現況風險等級一致，先接受
-- Rollback：新增的檔案（`search.tsx`／`useSearchHistoryStore.ts`／`search.ts`）直接刪除即可；`home.tsx`／`app/_layout.tsx`／`services/products.ts` 的改動用 `git diff` 還原對應區塊
+- 風險：`ShopHeader` 目前是 `FlashList` 的 `ListHeaderComponent`，建議面板如果用 absolute 定位疊在 Grid 上方，要注意 FlashList 的捲動/測量機制會不會跟 absolute 元素互相干擾（測量高度異常、捲動跳動）——實作時先用簡單的條件渲染（面板出現時把 Grid 往下推，不用 absolute 覆蓋），如果版面過度跳動再改成 absolute + 手動控制 z-index
+- 風險：搜尋比對範圍加大到描述後，如果某些商品描述文字很長且包含常見詞，可能讓某些關鍵字搜出過多不直覺的結果——先觀察實際使用情況，不預先過度設計排序權重
+- Rollback：只有 `shop.tsx` 一處修改（新增 import + `ShopHeader`/`ShopScreen` 的建議面板邏輯），`useSearchHistoryStore.ts`／`services/search.ts` 是既有共用檔案、這次沒有異動，`git diff`/還原 `shop.tsx` 即可完整回退，不影響其他既有畫面（含 `app/search.tsx`）
 
 ## Open questions
-- 熱門搜尋 API 的正式路徑/欄位命名需要 `back-end` session 確認，這版先假設 `GET /api/v1/search/suggestions` 回傳 `{ keyword: string }[]`，實際命名以 `back-end` session 回覆為準
+- 熱門標籤實際會塞哪些關鍵字內容（back-end 說先塞幾個常見分類詞）——這不影響前端實作，純粹是資料內容，可以之後再調整

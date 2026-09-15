@@ -2,6 +2,7 @@
 // 商店分頁：打自家後端 GET /api/v1/products（一次抓全部，目前 194 筆，資料量小），
 // 分類標籤與搜尋列都是前端本機即時過濾這份已抓到的資料，不會每次切分類/打字都重新打 API。
 // 跟首頁的 DummyJSON 展示頁（home.tsx／services/products.ts）刻意分開、不共用程式碼。
+// 搜尋列聚焦時顯示的「最近搜尋／熱門搜尋」見 plan-search.md（2026-09-15）。
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery } from '@tanstack/react-query';
@@ -16,8 +17,10 @@ import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
 import { useShopFavorites } from '../../../hooks/useShopFavorites';
 import { useThemeColors } from '../../../hooks/useThemeColors';
+import { fetchSearchSuggestions } from '../../../services/search';
 import { fetchShopProducts } from '../../../services/shop';
 import { useCartStore } from '../../../store/useCartStore';
+import { useSearchHistoryStore } from '../../../store/useSearchHistoryStore';
 import { ShopProduct } from '../../../types/shop';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -34,15 +37,26 @@ interface ShopHeaderProps {
   onSelectCategory: (category: string) => void;
   query: string;
   onChangeQuery: (query: string) => void;
+  onSubmitQuery: (query: string) => void;
   cartCount: number;
   colors: ThemeColors;
   styles: ReturnType<typeof createStyles>;
+  isSearchFocused: boolean;
+  onFocusSearch: () => void;
+  onBlurSearch: () => void;
+  recentKeywords: string[];
+  onClearHistory: () => void;
+  suggestions: string[];
 }
 
 function ShopHeader({
-  categories, selectedCategory, onSelectCategory, query, onChangeQuery, cartCount, colors, styles,
+  categories, selectedCategory, onSelectCategory, query, onChangeQuery, onSubmitQuery, cartCount, colors, styles,
+  isSearchFocused, onFocusSearch, onBlurSearch, recentKeywords, onClearHistory, suggestions,
 }: ShopHeaderProps) {
   const router = useRouter();
+  // 聚焦搜尋列、且還沒打字時才顯示「最近搜尋／熱門搜尋」建議面板；開始打字或失焦後自動收起
+  const showSuggestionPanel = isSearchFocused && query.trim().length === 0
+    && (recentKeywords.length > 0 || suggestions.length > 0);
 
   return (
     <View>
@@ -62,6 +76,10 @@ function ShopHeader({
             placeholderTextColor={colors.textSubtle}
             value={query}
             onChangeText={onChangeQuery}
+            onFocus={onFocusSearch}
+            onBlur={onBlurSearch}
+            onSubmitEditing={() => onSubmitQuery(query)}
+            returnKeyType="search"
           />
           {query.length > 0 && (
             <Pressable onPress={() => onChangeQuery('')} hitSlop={8}>
@@ -78,6 +96,49 @@ function ShopHeader({
           )}
         </Pressable>
       </View>
+
+      {showSuggestionPanel && (
+        <View style={styles.suggestionPanel}>
+          {recentKeywords.length > 0 && (
+            <View style={styles.suggestionSection}>
+              <View style={styles.suggestionSectionHeader}>
+                <Text style={styles.suggestionSectionTitle}>最近搜尋</Text>
+                <Pressable onPress={onClearHistory} hitSlop={8}>
+                  <Text style={styles.suggestionClearText}>清除</Text>
+                </Pressable>
+              </View>
+              <View style={styles.chipRow}>
+                {recentKeywords.map((keyword) => (
+                  <Pressable
+                    key={keyword}
+                    style={styles.chip}
+                    onPress={() => onSubmitQuery(keyword)}
+                  >
+                    <Text style={styles.chipText}>{keyword}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+          {suggestions.length > 0 && (
+            <View style={styles.suggestionSection}>
+              <Text style={styles.suggestionSectionTitle}>熱門搜尋</Text>
+              <View style={styles.chipRow}>
+                {suggestions.map((keyword) => (
+                  <Pressable
+                    key={keyword}
+                    style={[styles.chip, styles.chipHot]}
+                    onPress={() => onSubmitQuery(keyword)}
+                  >
+                    <Ionicons name="flame" size={12} color={colors.tint} />
+                    <Text style={styles.chipText}>{keyword}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      )}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
         <Pressable style={styles.categoryTab} onPress={() => onSelectCategory(ALL_CATEGORY)}>
@@ -108,6 +169,20 @@ export default function ShopScreen() {
 
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const [query, setQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // 跟 app/search.tsx（首頁展示頁搜尋，2026-09-06 已上線）共用同一個 store／service，
+  // 「最近搜尋」記錄不分展示頁/商店頁是同一份清單，熱門標籤也是同一份後端資料
+  const recentKeywords = useSearchHistoryStore((state) => state.keywords);
+  const addKeyword = useSearchHistoryStore((state) => state.addKeyword);
+  const clearHistory = useSearchHistoryStore((state) => state.clearHistory);
+
+  // fetchSearchSuggestions 內建 try/catch + FALLBACK_KEYWORDS，API 失敗或資料表是空的
+  // 都會回傳非空陣列，不需要額外處理失敗態
+  const { data: suggestions = [] } = useQuery({
+    queryKey: ['search-suggestions'],
+    queryFn: fetchSearchSuggestions,
+  });
 
   const { data: products = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['shop-products'],
@@ -123,10 +198,20 @@ export default function ShopScreen() {
     const keyword = query.trim().toLowerCase();
     return products.filter((product) => {
       const matchesCategory = selectedCategory === ALL_CATEGORY || product.category === selectedCategory;
-      const matchesQuery = keyword.length === 0 || product.title.toLowerCase().includes(keyword);
+      // 比對範圍涵蓋標題跟描述（2026-09-15 加強，原本只比對標題）
+      const matchesQuery = keyword.length === 0
+        || product.title.toLowerCase().includes(keyword)
+        || product.description.toLowerCase().includes(keyword);
       return matchesCategory && matchesQuery;
     });
   }, [products, selectedCategory, query]);
+
+  // 點擊最近搜尋／熱門標籤，或在搜尋列按下送出：帶入關鍵字、記錄進最近搜尋、收起建議面板
+  const handleSubmitQuery = (keyword: string) => {
+    setQuery(keyword);
+    addKeyword(keyword);
+    setIsSearchFocused(false);
+  };
 
   return (
     <FlashList<ShopProduct>
@@ -140,9 +225,16 @@ export default function ShopScreen() {
           onSelectCategory={setSelectedCategory}
           query={query}
           onChangeQuery={setQuery}
+          onSubmitQuery={handleSubmitQuery}
           cartCount={cartCount}
           colors={colors}
           styles={styles}
+          isSearchFocused={isSearchFocused}
+          onFocusSearch={() => setIsSearchFocused(true)}
+          onBlurSearch={() => setIsSearchFocused(false)}
+          recentKeywords={recentKeywords}
+          onClearHistory={clearHistory}
+          suggestions={suggestions}
         />
       }
       ListEmptyComponent={
@@ -238,6 +330,24 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3,
   },
   cartBadgeText: { fontSize: 10, color: colors.white, fontWeight: '700' },
+
+  suggestionPanel: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 14, gap: 12,
+  },
+  suggestionSection: { gap: 8 },
+  suggestionSectionHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  suggestionSectionTitle: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  suggestionClearText: { fontSize: 12, color: colors.tint },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
+    backgroundColor: colors.surfaceAlt,
+  },
+  chipHot: { borderWidth: 1, borderColor: colors.tint },
+  chipText: { fontSize: 12, color: colors.text },
 
   categoryScroll: { marginBottom: 16 },
   categoryTab: { alignItems: 'center', marginRight: 20, paddingBottom: 8 },
