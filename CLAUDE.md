@@ -141,7 +141,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 - **桌牌 QR Code 深層連結格式改版** — 原本 `mynotification://dine-in/table?table=A3` 只帶桌號，改成 `mynotification://dine-in/table?restaurant_id=2&table_id=13`，同時帶門市與桌位 id（因為桌號 `code` 同名但不同門市會衝突）。`app/dine-in/table.tsx` 偵測到 `table_id` 參數時會跳過手動選擇清單，直接帶入並導去菜單頁。QR Code 產生端在 `staff-scanner`（`table-qr.tsx`），格式已跨 session 對齊。
 - **`services/dineIn.ts`** — 新增 `fetchRestaurants()`、`fetchRestaurantTables(restaurantId)`（皆公開端點，不需 JWT）；`fetchMenu(restaurantId?)` 加上可選的門市篩選；`submitDineInOrder` 第一個參數從 `tableNumber: string` 改成 `tableId: number`，body 送 `table_id`（後端仍相容舊的 `table_number` 自由文字，但 mynotification 已全面改用 `table_id`，不再送 `table_number`）。
 - **後端狀態（`back-end` 2026-09-10 回報）**：Phase 1（`Restaurant` 實體、`Table`/`MenuItem`/`User`/`DineInOrder` 皆加 `restaurant_id`，均 nullable 向下相容）已完成部署。Phase 2（前端開始送 `restaurant_id`/`table_id`，本次改版內容）進行中。Phase 3（後端把欄位從「可選」收緊成「強制」）尚未開始，會等兩邊前端都上線穩定後再排。
-- **未完成/待確認事項**：`staff-scanner` 桌位管理 UI 要能依餐廳新增/篩選桌位（他們主導）；店員帳號怎麼被指派到門市目前是純手動 DB 操作，跟 `role` 升級同一套慣例，沒有 App 內管理畫面；有沒有需要一個能跨門市管理的 `manager` 角色，目前判斷沒有實際使用情境、先不加。
+- **未完成/待確認事項**：店員帳號怎麼被指派到門市目前是純手動 DB 操作，跟 `role` 升級同一套慣例，沒有 App 內管理畫面；有沒有需要一個能跨門市管理的 `manager` 角色，目前判斷沒有實際使用情境、先不加。（原本列在這裡的「`staff-scanner` 桌位管理 UI 要能依餐廳新增/篩選桌位」已跟 `staff` session 確認**刻意不做**：一個店員帳號只屬於一間門市，`/tables`／`/menu-items/admin`／`/dine-in-orders` 後端都自動 scope 到 caller 的門市，`staff-scanner` 首頁只顯示唯讀的「目前門市」標籤，不需要餐廳選單或篩選 UI。）
 
 ### 狀態管理模式
 
