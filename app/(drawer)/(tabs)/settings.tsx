@@ -264,6 +264,15 @@ const uploadToSupabase = async (uri: string) => {
           </View>
         </Pressable>
         <Pressable
+          onPress={() => router.push('/member-code')}
+          style={[styles.menuItem, { marginTop: 10 }]}
+        >
+          <Text style={styles.menuItemText}>會員條碼</Text>
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>門市結帳</Text>
+          </View>
+        </Pressable>
+        <Pressable
           onPress={handleLogout}
           style={({ pressed }) => [
             styles.logoutButton,

@@ -152,6 +152,12 @@ export default function RootLayout() {
       router.push(`/order/${data.order_id}`);
     } else if (data.screen === "NotificationInbox") {
       router.push('/inbox');
+    } else if (data.screen === "Points" && data.store_checkout_id) {
+      // 門市收銀完成推播（type: "store_checkout_completed"，見 plan-member-code-checkout.md），
+      // 點數餘額/明細剛入帳，導去前先 invalidate 一次確保不是舊快取
+      queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
+      router.push('/points');
     }
   }, [router]);
 
@@ -254,6 +260,17 @@ export default function RootLayout() {
                 options={{
                   headerShown: true,
                   title: '紅利點數',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              {/* 會員條碼畫面：從首頁功能 Grid 或 settings.tsx 的「帳號管理」入口導航進來，
+                  出示給店員用 staff-scanner 掃描辨識身份、於門市收銀結帳（見 plan-member-code-checkout.md） */}
+              <Stack.Screen
+                name="member-code"
+                options={{
+                  headerShown: true,
+                  title: '會員條碼',
                   headerTitleAlign: 'center',
                   headerBackTitle: '返回'
                 }}

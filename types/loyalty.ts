@@ -19,9 +19,19 @@ export interface LoyaltyTransaction {
   reason: string;
   related_order_id: number | null;
   related_dine_in_order_id: number | null;
+  // 門市收銀交易（見 plan-member-code-checkout.md），back-end 已於 2026-09-16 加上
+  // （commit d2a8dc2），跟 related_order_id/related_dine_in_order_id 對稱
+  related_store_checkout_id: number | null;
   created_at: string;
   expires_at: string | null; // 只有 type === 'earn' 才有值
   // 2026-09-11 多門市功能新增，純記錄/報表用途——餘額仍是統一帳戶層級，不影響能不能折抵
   // （見 CLAUDE.md「多門市」章節），堂食交易由後端從訂單的 table_id 反查門市自動帶入
   restaurant_id?: number | null;
+}
+
+// POST /api/v1/loyalty/member-code 的回應，比照 RedeemCodeResponse（types/index.ts）的
+// 6 碼數字/10 分鐘效期/單次使用設計，見 plan-member-code-checkout.md
+export interface MemberCodeResponse {
+  code: string;
+  expires_at: string;
 }

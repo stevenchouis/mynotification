@@ -75,11 +75,12 @@ interface QuickAction {
   id: string;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route?: '/coupons' | '/favorites' | '/inbox' | '/settings' | '/faq' | '/about' | '/privacy' | '/points';
+  route?: '/coupons' | '/favorites' | '/inbox' | '/settings' | '/faq' | '/about' | '/privacy' | '/points' | '/member-code';
   isDrawerToggle?: boolean;
 }
 
-// 3x3 功能捷徑：全部對應 App 內既有畫面，不是假連結
+// 3x3 功能捷徑：全部對應 App 內既有畫面，不是假連結。原本的「隱私權政策」改放「會員條碼」
+// （門市收銀入口，見 plan-member-code-checkout.md），隱私權政策仍可從 Drawer 選單進入，不會完全不能用
 const QUICK_ACTIONS: QuickAction[] = [
   { id: 'coupons', label: '我的', icon: 'pricetag-outline', route: '/coupons' },
   { id: 'points', label: '紅利點數', icon: 'star-outline', route: '/points' },
@@ -88,7 +89,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: 'settings', label: '帳號設定', icon: 'settings-outline', route: '/settings' },
   { id: 'faq', label: '常見問題', icon: 'help-circle-outline', route: '/faq' },
   { id: 'about', label: '關於此App', icon: 'information-circle-outline', route: '/about' },
-  { id: 'privacy', label: '隱私權政策', icon: 'shield-checkmark-outline', route: '/privacy' },
+  { id: 'member-code', label: '會員條碼', icon: 'barcode-outline', route: '/member-code' },
   { id: 'more', label: '全部服務', icon: 'grid-outline', isDrawerToggle: true },
 ];
 

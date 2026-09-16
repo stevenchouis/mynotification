@@ -16,9 +16,11 @@ import { useThemeColors } from '../hooks/useThemeColors';
 import { fetchLoyaltyBalance, fetchLoyaltyTransactions } from '../services/loyalty';
 import { fetchMyDineInOrders, fetchRestaurants } from '../services/dineIn';
 import { fetchMyOrders } from '../services/shop';
+import { fetchMyStoreCheckouts } from '../services/storeCheckouts';
 import { DineInOrder, Restaurant } from '../types/dineIn';
 import { LoyaltyTransaction, LoyaltyTransactionType } from '../types/loyalty';
 import { Order } from '../types/shop';
+import { StoreCheckout } from '../types/storeCheckout';
 
 const TX_DISPLAY: Record<
   LoyaltyTransactionType,
@@ -82,6 +84,8 @@ export default function PointsScreen() {
   // 這兩個既有 query key（跟 order/[id].tsx、dine-in/order/[id].tsx 共用快取，不會重複打 API）
   const { data: orders } = useQuery<Order[]>({ queryKey: ['my-orders'], queryFn: fetchMyOrders });
   const { data: dineInOrders } = useQuery<DineInOrder[]>({ queryKey: ['my-dine-in-orders'], queryFn: fetchMyDineInOrders });
+  // 門市收銀交易（見 plan-member-code-checkout.md），跟上面兩個 queryKey 同樣手法回頭查金額
+  const { data: storeCheckouts } = useQuery<StoreCheckout[]>({ queryKey: ['store-checkouts'], queryFn: fetchMyStoreCheckouts });
 
   // restaurant_id 是純記錄用途（多門市統一錢包，見 CLAUDE.md），只用來顯示這筆交易發生在哪間門市，
   // 不影響餘額/折抵邏輯；沿用 ['restaurants']（跟 dine-in/restaurant.tsx 共用快取）查門市名稱
@@ -94,8 +98,11 @@ export default function PointsScreen() {
     if (tx.related_dine_in_order_id != null) {
       return dineInOrders?.find((o) => o.id === tx.related_dine_in_order_id)?.total_amount ?? null;
     }
+    if (tx.related_store_checkout_id != null) {
+      return storeCheckouts?.find((c) => c.id === tx.related_store_checkout_id)?.total_amount ?? null;
+    }
     return null;
-  }, [orders, dineInOrders]);
+  }, [orders, dineInOrders, storeCheckouts]);
 
   const restaurantNameByTx = useCallback((tx: LoyaltyTransaction): string | null => {
     if (tx.restaurant_id == null) return null;
