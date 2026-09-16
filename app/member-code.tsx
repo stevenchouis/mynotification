@@ -88,7 +88,21 @@ export default function MemberCodeScreen() {
           {/* 條碼/QR Code 需要黑白高對比才能被掃描器辨識，wrapper 固定白底，不隨深色模式切換 */}
           <View style={styles.codeWrapper}>
             {format === 'barcode' ? (
-              <Barcode value={memberCode.code} format="CODE128" height={100} maxWidth={260} />
+              // react-native-barcode-svg 的 Barcode 是函式元件、靠 Barcode.defaultProps 給預設值，
+              // 但 RN 0.81 + React 19 已經不支援函式元件的 defaultProps（跟 components/Text.tsx
+              // 套用全域字型時遇到的問題同一個成因，見 CLAUDE.md），沒明確傳的 prop 會是 undefined。
+              // 沒傳 singleBarWidth 時，套件內部拿 undefined 去乘會算出 NaN 寬度，產生無效的 SVG
+              // path/viewBox，在 Android 上直接讓原生 react-native-svg 拋例外整包當掉——這裡所有
+              // 會被套件當預設值用的 prop 都要明確傳值，不能依賴它的 defaultProps。
+              <Barcode
+                value={memberCode.code}
+                format="CODE128"
+                height={100}
+                maxWidth={260}
+                singleBarWidth={2}
+                lineColor="#000000"
+                backgroundColor="#ffffff"
+              />
             ) : (
               <QRCode value={memberCode.code} size={200} />
             )}
