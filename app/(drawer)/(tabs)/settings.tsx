@@ -216,6 +216,12 @@ const uploadToSupabase = async (uri: string) => {
             <>
               <Text style={styles.userName}>{user?.username || 'User'}</Text>
               <Text style={styles.userEmail}>{user?.email || 'No email'}</Text>
+              {/* 給使用者拿來跟 staff-scanner 接單列表上顯示的 user_id 比對，確認哪筆訂單是自己的
+                  （2026-09-17，見 plan-dine-in-order-payment.md 的「訂單#33」誤會），純顯示、
+                  不是主要的個人資料欄位，故意用比 email 更淡的樣式 */}
+              {user?.id != null && (
+                <Text style={styles.userIdText}>User ID: {user.id}</Text>
+              )}
             </>
           )}
         </View>
@@ -350,6 +356,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   userInfo: { flex: 1, marginLeft: 20 },
   userName: { fontSize: 20, fontWeight: 'bold', color: colors.text },
   userEmail: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+  userIdText: { fontSize: 12, color: colors.textSubtle, marginTop: 2 },
   // 修正你的紅字報錯
   label: {
     fontSize: 14,
