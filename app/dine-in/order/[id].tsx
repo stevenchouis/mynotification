@@ -10,7 +10,13 @@ import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { fetchMyDineInOrders } from '../../../services/dineIn';
-import { DINE_IN_ORDER_STATUS_LABEL, DineInOrder } from '../../../types/dineIn';
+import { DineInPaymentMethod, DINE_IN_ORDER_STATUS_LABEL, DineInOrder } from '../../../types/dineIn';
+
+// 跟門市收銀（StoreCheckout）用的付款方式文案分開維護，避免耦合到不相干的通路
+const PAYMENT_METHOD_LABEL: Record<DineInPaymentMethod, string> = {
+  cash: '現金',
+  jkopay: '街口支付',
+};
 
 export default function DineInOrderDetailScreen() {
   const colors = useThemeColors();
@@ -47,6 +53,9 @@ export default function DineInOrderDetailScreen() {
         <Text style={styles.totalAmount}>${order.total_amount}</Text>
         <Text style={styles.metaText}>桌號：{order.table_number}</Text>
         <Text style={styles.metaText}>建立時間：{new Date(order.created_at).toLocaleString('zh-TW')}</Text>
+        {order.payment_method && (
+          <Text style={styles.metaText}>付款方式：{PAYMENT_METHOD_LABEL[order.payment_method]}</Text>
+        )}
       </View>
 
       {(order.coupon_discount > 0 || order.points_earned > 0 || order.points_used > 0) && (

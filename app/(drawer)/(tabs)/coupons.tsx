@@ -59,6 +59,7 @@ type DineInFilterKey = DineInOrderStatus | 'all';
 const DINE_IN_FILTER_TABS: { key: DineInFilterKey; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '處理中' },
+  { key: 'served', label: '待收款' },
   { key: 'completed', label: '已完成' },
 ];
 
@@ -170,7 +171,7 @@ export default function MyScreen() {
 
   const dineInCounts = useMemo(() => {
     const result: Record<DineInFilterKey, number> = {
-      all: (dineInOrders ?? []).length, pending: 0, completed: 0,
+      all: (dineInOrders ?? []).length, pending: 0, served: 0, completed: 0,
     };
     (dineInOrders ?? []).forEach((o) => { result[o.status]++; });
     return result;
