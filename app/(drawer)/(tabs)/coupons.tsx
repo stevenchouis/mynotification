@@ -61,6 +61,7 @@ const DINE_IN_FILTER_TABS: { key: DineInFilterKey; label: string }[] = [
   { key: 'pending', label: '處理中' },
   { key: 'served', label: '待收款' },
   { key: 'completed', label: '已完成' },
+  { key: 'cancelled', label: '已取消' },
 ];
 
 // 手勢左右切換這幾組「子分類」篩選標籤（2026-09-15，使用者指定放在這一層，不是最上層
@@ -171,7 +172,7 @@ export default function MyScreen() {
 
   const dineInCounts = useMemo(() => {
     const result: Record<DineInFilterKey, number> = {
-      all: (dineInOrders ?? []).length, pending: 0, served: 0, completed: 0,
+      all: (dineInOrders ?? []).length, pending: 0, served: 0, completed: 0, cancelled: 0,
     };
     (dineInOrders ?? []).forEach((o) => { result[o.status]++; });
     return result;

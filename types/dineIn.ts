@@ -36,7 +36,11 @@ export interface DineInOrderItem {
 // 觸發點，這段邏輯完全沒動（back-end 確認發點判斷式看的是「還不是 completed」，插入 served
 // 不影響它）。狀態轉換順序由後端強制檢查（跳過會 409），mynotification 這邊純顯示，不需要
 // 自己再檢查順序。
-export type DineInOrderStatus = 'pending' | 'served' | 'completed';
+// 'cancelled' 是 2026-09-19 新增（見 plan-dine-in-order-cancel.md），只處理「已出餐（served）
+// 但顧客沒付款就離開」的情境，由店員在 staff-scanner 呼叫 POST /dine-in-orders/{id}/cancel
+// 觸發，僅允許 served → cancelled（其餘狀態轉換會被後端擋 409）。mynotification 這邊純顯示，
+// 不新增任何觸發取消的 UI。
+export type DineInOrderStatus = 'pending' | 'served' | 'completed' | 'cancelled';
 
 // 訂單狀態顯示文字，比照 types/shop.ts 的 ORDER_STATUS_LABEL 寫法。狀態轉換由店員 App
 // 透過 PATCH /dine-in-orders/{id}/status 觸發，顧客端查詢自己的點餐紀錄時可能會讀到，
@@ -45,6 +49,7 @@ export const DINE_IN_ORDER_STATUS_LABEL: Record<DineInOrderStatus, string> = {
   pending: '處理中（等待店家確認）',
   served: '已出餐，待收款',
   completed: '已完成',
+  cancelled: '已取消',
 };
 
 // 門市收銀（StoreCheckout）也有同樣的 'cash'/'jkopay' 概念，但型別刻意分開不共用，
