@@ -2,6 +2,7 @@
 // 包住 (tabs) 的 Drawer 導航（左上角選單）。(tabs) 本身的 Tabs 已把 headerShown 關掉，
 // 所以這裡是整個已登入區域唯一顯示 header／選單按鈕的地方。
 import { Ionicons } from '@expo/vector-icons';
+import { Href, router } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
@@ -68,11 +69,23 @@ export default function DrawerLayout() {
     >
       <Drawer.Screen
         name="(tabs)"
-        options={({ route }) => ({
-          title: TAB_TITLES[getFocusedRouteNameFromRoute(route) ?? 'home'] ?? BRAND_TITLE,
-          drawerLabel: '首頁',
-          drawerIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-        })}
+        options={({ route }) => {
+          const focusedTab = getFocusedRouteNameFromRoute(route) ?? 'home';
+          return {
+            title: TAB_TITLES[focusedTab] ?? BRAND_TITLE,
+            // 好友入口只在「我的」分頁顯示（見 plan-friends.md），其餘分頁維持沒有 headerRight
+            headerRight:
+              focusedTab === 'coupons'
+                ? () => (
+                    <Pressable onPress={() => router.push('/friends' as Href)} hitSlop={12} style={{ marginRight: 12 }}>
+                      <Ionicons name="people-outline" size={24} color={colors.text} />
+                    </Pressable>
+                  )
+                : undefined,
+            drawerLabel: '首頁',
+            drawerIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          };
+        }}
       />
       <Drawer.Screen
         name="about"

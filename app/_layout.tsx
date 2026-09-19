@@ -14,7 +14,7 @@ import {
 } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
-import { Stack, useRouter } from 'expo-router';
+import { Href, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef } from 'react';
@@ -158,6 +158,12 @@ export default function RootLayout() {
       queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
       queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
       router.push('/points');
+    } else if (data.screen === "Friends") {
+      // 三種好友推播共用（type: friend_request／friend_request_accepted／friend_greeting），
+      // 對應的好友列表/邀請清單可能有 5 分鐘 staleTime 的舊快取，導頁前先 invalidate
+      queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+      router.push('/friends' as Href);
     }
   }, [router]);
 
@@ -271,6 +277,43 @@ export default function RootLayout() {
                 options={{
                   headerShown: true,
                   title: '會員條碼',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              {/* 好友功能（見 plan-friends.md）：從「我的」分頁 header 右上角的好友圖示導航進來 */}
+              <Stack.Screen
+                name="friends/index"
+                options={{
+                  headerShown: true,
+                  title: '好友',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              <Stack.Screen
+                name="friends/scan"
+                options={{
+                  headerShown: true,
+                  title: '掃描好友',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              <Stack.Screen
+                name="friends/my-code"
+                options={{
+                  headerShown: true,
+                  title: '我的 QR Code',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
+              <Stack.Screen
+                name="friends/[friendshipId]"
+                options={{
+                  headerShown: true,
+                  title: '好友',
                   headerTitleAlign: 'center',
                   headerBackTitle: '返回'
                 }}

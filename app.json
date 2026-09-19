@@ -51,6 +51,12 @@
         }
       ],
       "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "掃描好友的 QR Code 需要使用相機"
+        }
+      ],
       "@xmartlabs/react-native-line",
       [
         "expo-build-properties",

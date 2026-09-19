@@ -6,13 +6,14 @@ import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
 import { useThemeColors } from '../../../hooks/useThemeColors';
+import { api } from '../../../services/api';
 import { fetchLoyaltyBalance } from '../../../services/loyalty';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
@@ -46,6 +47,8 @@ export default function SettingsScreen() {
   const setThemeMode = useThemeModeStore((state) => state.setMode);
 
   const [isUploading, setIsUploading] = useState(false);
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState('');
 
   const { data: loyaltyBalance } = useQuery({
     queryKey: ['loyalty-balance'],
@@ -88,6 +91,26 @@ export default function SettingsScreen() {
       Alert.alert("錯誤", "同步資料至伺服器失敗");
     }
   });
+
+  // 暱稱：好友頁、好友 QR Code 顯示的名稱（見 plan-nickname.md）。空字串代表清除暱稱，
+  // 交給後端存成 null；長度上限 20 字跟後端規則一致，前端先擋一次
+  const updateNicknameMutation = useMutation({
+    mutationFn: (nickname: string) => api.put('/api/v1/users/me', { nickname }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      // 好友列表回傳的是對方暱稱，自己改名後對方那邊才會變，這裡不需要 invalidate ['friends']
+      setIsEditingNickname(false);
+    },
+    onError: (error: any) => {
+      const detail = error.response?.data?.detail;
+      Alert.alert('錯誤', (typeof detail === 'string' ? detail : null) || '暱稱更新失敗，請稍後再試');
+    },
+  });
+
+  const openNicknameEditor = () => {
+    setNicknameDraft(user?.nickname ?? '');
+    setIsEditingNickname(true);
+  };
 
   // 4. Android 穩定版圖片轉換函式 (使用 XMLHttpRequest)
   const uriToBlob = (uri: string): Promise<Blob> => {
@@ -214,7 +237,10 @@ const uploadToSupabase = async (uri: string) => {
             <ActivityIndicator size="small" color={colors.tint} />
           ) : (
             <>
-              <Text style={styles.userName} numberOfLines={1}>{user?.username || '帳號'}</Text>
+              <Pressable style={styles.nicknameRow} onPress={openNicknameEditor} hitSlop={8}>
+                <Text style={styles.userName} numberOfLines={1}>{user?.nickname || '設定暱稱'}</Text>
+                <Ionicons name="create-outline" size={16} color={colors.textSubtle} />
+              </Pressable>
               <Text style={styles.userEmail} numberOfLines={1} ellipsizeMode="tail">
                 {user?.email || 'No email'}
               </Text>
@@ -294,6 +320,42 @@ const uploadToSupabase = async (uri: string) => {
       </View>
 
       <Text style={styles.versionText}>版本號：1.0.3 (Android Blob Fix)</Text>
+      <Modal visible={isEditingNickname} transparent animationType="fade" onRequestClose={() => setIsEditingNickname(false)}>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>設定暱稱</Text>
+            <Text style={styles.modalHint}>好友會看到這個名稱，最多 20 字；留空則清除暱稱</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={nicknameDraft}
+              onChangeText={setNicknameDraft}
+              maxLength={20}
+              autoFocus
+              placeholder="請輸入暱稱"
+              placeholderTextColor={colors.textSubtle}
+            />
+            <View style={styles.modalButtonRow}>
+              <Pressable style={styles.modalCancelButton} onPress={() => setIsEditingNickname(false)}>
+                <Text style={styles.modalCancelText}>取消</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalSaveButton}
+                disabled={updateNicknameMutation.isPending}
+                onPress={() => updateNicknameMutation.mutate(nicknameDraft.trim())}
+              >
+                {updateNicknameMutation.isPending ? (
+                  <ActivityIndicator color={colors.onTint} />
+                ) : (
+                  <Text style={styles.modalSaveText}>儲存</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -356,7 +418,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.surface,
   },
   userInfo: { flex: 1, marginLeft: 14 },
-  userName: { fontSize: 20, fontWeight: 'bold', color: colors.text },
+  nicknameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  userName: { flexShrink: 1, fontSize: 20, fontWeight: 'bold', color: colors.text },
   userEmail: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   userIdText: { fontSize: 12, color: colors.textSubtle, marginTop: 2 },
   // 修正你的紅字報錯
@@ -455,4 +518,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   logoutText: { color: colors.white, fontSize: 16, fontWeight: '600' },
   versionText: { textAlign: 'center', color: colors.textSubtle, marginTop: 50, fontSize: 12 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: colors.text },
+  modalHint: { fontSize: 13, color: colors.textSubtle, marginTop: 6, marginBottom: 16 },
+  modalInput: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12,
+    paddingVertical: 10, fontSize: 16, color: colors.text, backgroundColor: colors.background,
+  },
+  modalButtonRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  modalCancelButton: {
+    flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border,
+  },
+  modalCancelText: { fontSize: 15, color: colors.textMuted, fontWeight: '600' },
+  modalSaveButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: colors.tint },
+  modalSaveText: { fontSize: 15, color: colors.onTint, fontWeight: '600' },
 });

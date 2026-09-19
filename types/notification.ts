@@ -10,6 +10,7 @@ export interface NotificationData {
     screen?: string;
     product_id?: number;
     coupon_id?: number;
+    friendship_id?: number;
     [key: string]: unknown;
 }
 
