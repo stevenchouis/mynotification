@@ -4,7 +4,7 @@ import axios from 'axios';
 import * as Notifications from 'expo-notifications';
 import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import { useThemeColors } from '../../../hooks/useThemeColors';
@@ -75,7 +75,14 @@ export default function TabLayout() {
       // 關鍵：不再呼叫 fetchNotifications()
       // 而是讓 TanStack Query 的快取失效，它會自動重新抓取並觸發上面的 useEffect 更新數字
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      
+
+      // 好友推播（收到邀請/對方接受/快速訊息）：好友列表與待確認邀請有全域 5 分鐘 staleTime，
+      // 不主動失效的話，正在看（或剛看過）好友頁的人不會看到新的邀請或新好友
+      if (notification.request.content.data?.screen === 'Friends') {
+        queryClient.invalidateQueries({ queryKey: ['friends'] });
+        queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+      }
+
       Toast.show({
         type: 'info',
         text1: notification.request.content.title || '新通知',
@@ -87,6 +94,17 @@ export default function TabLayout() {
     return () => subscription.remove();
   }, [queryClient]);
 
+  // 6. App 從背景回到前景時重抓通知：App 在背景時收到的推播不會經過上面的前景監聽器，
+  // 回到前景若通知快取還沒過期，列表與 Tab Bar 未讀徽章就會一直是舊的
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      }
+    });
+    return () => subscription.remove();
+  }, [queryClient]);
+
   return (
     // headerShown: false — header 交給外層的 (drawer)/_layout.tsx 統一顯示（含選單按鈕）
     <Tabs
@@ -95,6 +113,10 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.textSubtle,
         tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
         headerShown: false,
+        // 沒在畫面上的分頁凍結、不跟著重新渲染：在「設定」切換外觀模式時，逛過的其他分頁
+        // （尤其首頁的輪播/跑馬燈/商品 Grid）原本會一起重繪，實測要等 4-5 秒，只開設定頁則約 1 秒。
+        // 切回該分頁時才會用最新主題色重繪
+        freezeOnBlur: true,
       }}
     >
       <Tabs.Screen

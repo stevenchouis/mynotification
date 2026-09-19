@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
-import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Text from '../../../components/Text';
@@ -92,8 +93,22 @@ function createFilterSwipeGesture<K extends string>(
 
 export default function MyScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // 優惠券／訂單／點餐狀態會被 mynotification 以外的地方改變（店員在 staff-scanner 取消或
+  // 完成堂食訂單、退還優惠券與點數等），全域 5 分鐘 staleTime 下切回這個分頁不會自動重抓，
+  // 會一直顯示舊狀態（2026-09-19 堂食訂單 #59 取消後優惠券「沒退回」的實測回報，資料其實已退回）。
+  // 比照 settings.tsx／app/points.tsx 的做法，每次分頁重新取得焦點就讓這三組快取失效重抓
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['myCoupons'] });
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['my-dine-in-orders'] });
+    }, [queryClient])
+  );
+
   const [section, setSection] = useState<Section>('coupons');
   const [filter, setFilter] = useState<FilterKey>('active');
   const [orderFilter, setOrderFilter] = useState<OrderFilterKey>('all');

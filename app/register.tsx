@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
   Alert, KeyboardAvoidingView, Platform, Pressable,
   ScrollView,
-  StyleSheet, TextInput, TouchableOpacity, View
+  StyleSheet, TextInput, View
 } from 'react-native';
 
 // 匯入剛剛定義好的 Schema 與 Type
-import DateTimePicker from '@react-native-community/datetimepicker';
+import BirthdayPicker, { formatDateLocal } from '../components/BirthdayPicker';
 import Text from '../components/Text';
 import { ThemeColors } from '../constants/Colors';
 import { useThemeColors } from '../hooks/useThemeColors';
@@ -25,7 +25,6 @@ export default function RegisterScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
 
   // const API_URL = 'http://192.168.68.53:8000'; 
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -59,7 +58,7 @@ export default function RegisterScreen() {
       await axios.post(`${API_URL}/api/v1/users/register`, {
         email: data.email,
         password: data.password,
-        birthday: data.birthday.toISOString().split('T')[0], // 轉成後端要的字串
+        birthday: formatDateLocal(data.birthday), // 轉成後端要的 YYYY-MM-DD（用本地日期，toISOString 在 UTC+8 會少一天）
       });
       Alert.alert("註冊成功", "我們已經準備了一張新會員歡迎禮券，登入後至「我的優惠券」查看", [
         { text: "OK", onPress: () => router.replace('/') }
@@ -151,32 +150,7 @@ export default function RegisterScreen() {
           control={control}
           name="birthday"
           render={({ field: { onChange, value } }) => (
-            <>
-              <TouchableOpacity
-                onPress={() => setShowPicker(true)}
-                style={{
-                  padding: 15,
-                  backgroundColor: colors.surfaceAlt,
-                  borderRadius: 8,
-                  borderColor: errors.birthday ? colors.danger : 'transparent',
-                  borderWidth: 1
-                }}
-              >
-                <Text style={{ color: colors.text }}>{value ? value.toLocaleDateString() : "請點擊選擇生日"}</Text>
-              </TouchableOpacity>
-
-              {showPicker && (
-                <DateTimePicker
-                  value={value || new Date()}
-                  mode="date"
-                  maximumDate={new Date()}
-                  onChange={(event, date) => {
-                    setShowPicker(false);
-                    if (date) onChange(date); // 將 Date 物件傳回 React Hook Form
-                  }}
-                />
-              )}
-            </>
+            <BirthdayPicker value={value} onChange={onChange} hasError={!!errors.birthday} />
           )}
         />
       {errors.birthday && <Text style={{ color: colors.danger }}>{errors.birthday.message}</Text>}

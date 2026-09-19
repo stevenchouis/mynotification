@@ -12,7 +12,7 @@ import {
   Theme as NavTheme,
   ThemeProvider,
 } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { Href, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -27,15 +27,7 @@ import AppToast from '../components/AppToast';
 import FallbackSplash from '../components/FallbackSplash';
 import { Colors } from '../constants/Colors';
 import { useResolvedScheme } from '../hooks/useThemeColors';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 1000 * 60 * 5,
-    },
-  },
-});
+import { queryClient } from '../services/queryClient';
 
 // React Navigation 的 Theme 物件，控制 Stack/Drawer/Tabs 原生 header、卡片背景這些「導覽層級」
 // 的顏色（畫面內容本身的顏色由各畫面自己透過 useThemeColors() 取用 constants/Colors.ts）。

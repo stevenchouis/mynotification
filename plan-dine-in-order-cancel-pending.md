@@ -68,7 +68,8 @@ sequenceDiagram
 ## Done definition
 - [x] back-end：端點放寬 + 409 文案更新並部署（commit 60d5ab0，2026-09-19 已上線；並發防護實際採 `SELECT ... FOR UPDATE` 鎖列，`/cancel` 與 `PATCH /status` 都加了，效果等同條件式 UPDATE；409 文案為「只有候餐中或等待收款的訂單可以取消」；顧客呼叫回 403）
 - [ ] staff-scanner：`pending` 卡片新增取消按鈕與分支文案，`tsc`/`lint` 乾淨
-- [ ] 上述 4 個測試都通過
+- [x] 使用者實測：pending 取消（訂單 #59，用券+折抵點數）與 served 作廢皆正常（2026-09-19）。過程中發現顧客端「我的」分頁快取不會因店員端取消而刷新（資料其實已退回），已於 coupons.tsx 補上取得焦點即重抓（`useFocusEffect` invalidate `myCoupons`／`my-orders`／`my-dine-in-orders`）
+- [ ] 競態案例（back-end 側並發驗證）與 staff-scanner 是否已完成按鈕改動待確認
 - [ ] 兩邊各自的使用者確認動工並 commit（mynotification 這邊無程式碼改動，只需保留本 plan）
 
 ## Risks & rollback

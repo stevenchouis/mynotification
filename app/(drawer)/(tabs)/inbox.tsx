@@ -1,8 +1,9 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from "@shopify/flash-list";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { RectButton } from 'react-native-gesture-handler';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -45,6 +46,15 @@ export default function InboxScreen() {
     },
     enabled: !!token,
   });
+
+  // 通知是在別人的裝置操作、或 App 在背景時由推播產生的，切到這個分頁不會自動重抓
+  // （全域 5 分鐘 staleTime），使用者會看到舊列表、要手動下拉刷新才出現新通知，
+  // 所以每次取得焦點都讓快取失效重抓
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }, [queryClient])
+  );
 
   // 2. 同步未讀數到 Zustand (供 Tab Bar Badge 使用)
   useEffect(() => {

@@ -1,10 +1,11 @@
 // app/friends/index.tsx
 // 好友列表 + 待確認邀請（見 plan-friends.md）。區段切換 UI 比照 (tabs)/coupons.tsx。
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import Text from '../../components/Text';
@@ -38,6 +39,15 @@ export default function FriendsScreen() {
 
   const friendsQuery = useQuery<Friend[]>({ queryKey: ['friends'], queryFn: fetchFriends });
   const requestsQuery = useQuery<FriendRequest[]>({ queryKey: ['friend-requests'], queryFn: fetchFriendRequests });
+
+  // 邀請/好友關係是別人在他們的裝置上操作才會改變的（對方掃我的碼、對方接受我的邀請），
+  // 全域 5 分鐘 staleTime 下重新進入這個畫面不會重抓，所以每次取得焦點都讓快取失效重抓
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+    }, [queryClient])
+  );
 
   // 加星號的好友排最前面，其餘維持後端回傳順序
   const sortedFriends = useMemo(() => {

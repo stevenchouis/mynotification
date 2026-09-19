@@ -3,9 +3,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { createClient } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -35,6 +36,11 @@ const supabase = createClient(
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+// 頭貼上傳前縮小到這個邊長（picker 已經裁成 1:1）。頭貼也會被當成好友推播的圖片使用
+// （見 plan-push-image.md），裝置收到通知時才自己下載，原圖動輒數 MB 可能導致圖片不顯示，
+// 而顯示尺寸最大也就是通知大圖，512px 綽綽有餘
+const AVATAR_MAX_SIZE = 512;
+
 export default function SettingsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -47,6 +53,10 @@ export default function SettingsScreen() {
   const setThemeMode = useThemeModeStore((state) => state.setMode);
 
   const [isUploading, setIsUploading] = useState(false);
+  // 切換外觀模式時整個 App 要重繪，會有一小段等待（見 app/(drawer)/(tabs)/_layout.tsx 的
+  // freezeOnBlur 註解）；pendingMode 記錄「正在套用中」的選項，用來顯示轉圈並鎖住所有選項，
+  // 避免使用者以為沒反應而連按、或在套用途中又切換成另一個
+  const [pendingMode, setPendingMode] = useState<ThemeMode | null>(null);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState('');
 
@@ -91,6 +101,21 @@ export default function SettingsScreen() {
       Alert.alert("錯誤", "同步資料至伺服器失敗");
     }
   });
+
+  const handleSelectThemeMode = (mode: ThemeMode) => {
+    if (pendingMode !== null || mode === themeMode) return;
+    setPendingMode(mode);
+    // 先讓「轉圈」這一幀畫出來，再真正切換：切換會佔住 JS 執行緒重繪所有畫面，
+    // 如果同步呼叫，使用者要等重繪結束才看得到任何回饋
+    setTimeout(() => setThemeMode(mode), 50);
+  };
+
+  // 主題實際套用完成（store 的 mode 已等於選的值、且這次重繪已 commit）才解除鎖定
+  useEffect(() => {
+    if (pendingMode !== null && themeMode === pendingMode) {
+      setPendingMode(null);
+    }
+  }, [themeMode, pendingMode]);
 
   // 暱稱：好友頁、好友 QR Code 顯示的名稱（見 plan-nickname.md）。空字串代表清除暱稱，
   // 交給後端存成 null；長度上限 20 字跟後端規則一致，前端先擋一次
@@ -139,7 +164,24 @@ export default function SettingsScreen() {
     });
 
     if (!result.canceled && result.assets[0].uri) {
-      uploadToSupabase(result.assets[0].uri);
+      setIsUploading(true);
+      const asset = result.assets[0];
+      try {
+        // 已經小於上限就不重新編碼（避免放大，也少一次畫質損失）；否則縮到 512px 並轉成 JPEG
+        let uploadUri = asset.uri;
+        if (asset.width > AVATAR_MAX_SIZE) {
+          const resized = await ImageManipulator.manipulate(asset.uri)
+            .resize({ width: AVATAR_MAX_SIZE })
+            .renderAsync();
+          const saved = await resized.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
+          uploadUri = saved.uri;
+        }
+        await uploadToSupabase(uploadUri);
+      } catch (error) {
+        console.error("頭貼縮圖失敗:", error);
+        Alert.alert("上傳失敗", "圖片處理失敗，請換一張圖片再試");
+        setIsUploading(false);
+      }
     }
   };
 
@@ -186,7 +228,6 @@ const uploadToSupabase = async (uri: string) => {
         text: '確定登出',
         style: 'destructive',
         onPress: async () => {
-          queryClient.clear(); // 清空 TanStack Query 快取
           resetNotifications(); // 重置 Zustand 通知計數
           await logout();
           router.replace('/');
@@ -259,16 +300,27 @@ const uploadToSupabase = async (uri: string) => {
         <Text style={styles.sectionLabel}>外觀模式</Text>
         <View style={styles.appearanceRow}>
           {APPEARANCE_OPTIONS.map((option) => {
-            const isActive = themeMode === option.key;
+            const isPending = pendingMode === option.key;
+            // 套用中：目標選項先亮起並轉圈，原本選中的選項恢復一般樣式
+            const isActive = pendingMode !== null ? isPending : themeMode === option.key;
             return (
               <Pressable
                 key={option.key}
-                style={[styles.appearanceOption, isActive && styles.appearanceOptionActive]}
-                onPress={() => setThemeMode(option.key)}
+                style={[
+                  styles.appearanceOption,
+                  isActive && styles.appearanceOptionActive,
+                  pendingMode !== null && !isPending && styles.appearanceOptionDisabled,
+                ]}
+                disabled={pendingMode !== null}
+                onPress={() => handleSelectThemeMode(option.key)}
               >
-                <Text style={[styles.appearanceOptionText, isActive && styles.appearanceOptionTextActive]}>
-                  {option.label}
-                </Text>
+                {isPending ? (
+                  <ActivityIndicator size="small" color={colors.onTint} />
+                ) : (
+                  <Text style={[styles.appearanceOptionText, isActive && styles.appearanceOptionTextActive]}>
+                    {option.label}
+                  </Text>
+                )}
               </Pressable>
             );
           })}
@@ -455,11 +507,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 10,
+    minHeight: 40,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.surfaceAlt,
   },
   appearanceOptionActive: {
     backgroundColor: colors.tint,
+  },
+  appearanceOptionDisabled: {
+    opacity: 0.5,
   },
   appearanceOptionText: {
     fontSize: 13,
