@@ -75,7 +75,7 @@ sequenceDiagram
 - [x] 前端：頭貼上傳前縮到 512px 完成，`tsc`/lint 乾淨
 - [x] 前端：已送出新 Dev Build（`b9cd89a7-a9da-4068-9fc3-3de517e4a311`，含 `expo-camera`、小圖示、`expo-image-manipulator`）
 - [ ] 新 Dev Build 安裝後，Android 小圖示驗證通過
-- [ ] back-end 實作 `image_url`／`richContent` 並部署（待 back-end 使用者確認排程）
+- [x] back-end 實作 `image_url`／`richContent` 並 push（commit 8168c0d，2026-09-19；back-end 只用假 Expo client 驗證 payload 格式，無法從外部確認 Render 已部署到此 commit，測試前先確認部署完成）
 - [ ] Android 實機驗證右側大圖（商品／好友通知）
 - [ ] iOS 驗證（待 Apple Developer 帳號）
 - [ ] Commit
