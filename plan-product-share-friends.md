@@ -59,15 +59,16 @@ sequenceDiagram
   3. 錯誤案例：商品已下架後才點擊舊推播，顯示既有「找不到這個商品」畫面（沿用 `shop/[id].tsx` 既有行為，不需額外處理）
 
 ## Done definition
-- [x] 已跟 back-end 確認端點契約與推播 payload（2026-10-12，含 accepted 狀態檢查、`is_active` 檢查、`image_url` 帶圖，皆已對齊，尚未排入雙方開發排程）
-- [ ] `FriendPickerSheet` 與 `shop/[id].tsx` 改動完成，`tsc`/`lint` 乾淨
-- [ ] 後端部署
-- [ ] 端對端測試通過
-- [ ] Commit
+- [x] 已跟 back-end 確認端點契約與推播 payload（2026-10-12，含 accepted 狀態檢查、`is_active` 檢查、`image_url` 帶圖，皆已對齊）
+- [x] `FriendPickerSheet` 與 `shop/[id].tsx` 改動完成，`tsc`/`lint` 乾淨（已於 commit `598af0b` 一併提交）
+- [x] 後端部署（commit `50ffd38`，2026-10-12 已確認 `/openapi.json` 有這支路徑；back-end 用拋棄式測試帳號對正式 DB 跑過所有分支：非成員 404、未 accepted 409、商品不存在/下架 404、成功 200）
+- [x] 端對端測試通過（2026-10-12，使用者實機確認：收到推播、下拉通知欄確認有附商品圖、點擊正確導到該商品詳情頁。因只有一台裝置，無法用真實 UI 兩端互測，改由 back-end 直接呼叫分享背後的服務邏輯模擬 hotmail→gmail 分享，推播與導頁行為跟透過 UI 分享會走的程式碼路徑一致，見 Risks 補充）
+- [x] Commit（前端已在 `598af0b`，測試過程未發現需要修正的地方，不需額外 commit）
 
 ## Risks & rollback
 - 風險：分享功能可能被濫用成騷擾管道（連環分享商品），但範圍僅限「已是好友」的對象，風險等級與好友快速訊息相同，暫不額外處理
 - Rollback：全部是新檔案 + `shop/[id].tsx` 小範圍新增（按鈕 + 開啟 sheet），`git diff` 還原即可
+- **測試方法限制**（2026-10-12）：使用者只有一台實體裝置，沒辦法同時「用分享者帳號登入按分享」又「用收件人帳號登入收推播」——App 的 Push Token 註冊是跟著目前登入的帳號走（見 `services/authFlow.ts`／`(tabs)/_layout.tsx` 的 push-token 同步邏輯），同一支手機同一時間只能代表一個帳號收推播。這次改由 back-end 直接呼叫 `share-product` 背後的服務邏輯（繞過 HTTP 認證層，帶入真實的 `friendship_id`／`product_id`）來模擬「分享者按下分享鍵」這個動作，手機維持登入收件人帳號收推播，這樣除了「按鈕本身觸發 API」這一小段，其餘（服務邏輯驗證、推播組裝與發送、App 端收到推播與導頁）都是走真實程式碼路徑，不是假資料。之後如果有第二台裝置，可以再補一次完全透過 UI 操作的端對端測試，但目前這次驗證已經足夠確認功能正確
 
 ## Open questions
 - 點擊推播後的導頁體驗：要不要比照 `ProductDetail` 既有模式「先 push 商店列表、再疊商品詳情頁」讓返回鍵能回到列表，還是直接進商品頁、返回鍵回首頁即可（目前商品到貨/降價推播是前者，建議保持一致）
