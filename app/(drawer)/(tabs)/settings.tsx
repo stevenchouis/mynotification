@@ -155,34 +155,58 @@ export default function SettingsScreen() {
   };
 
   // 5. 處理圖片挑選與上傳
-  const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-
-    if (!result.canceled && result.assets[0].uri) {
-      setIsUploading(true);
-      const asset = result.assets[0];
-      try {
-        // 已經小於上限就不重新編碼（避免放大，也少一次畫質損失）；否則縮到 512px 並轉成 JPEG
-        let uploadUri = asset.uri;
-        if (asset.width > AVATAR_MAX_SIZE) {
-          const resized = await ImageManipulator.manipulate(asset.uri)
-            .resize({ width: AVATAR_MAX_SIZE })
-            .renderAsync();
-          const saved = await resized.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
-          uploadUri = saved.uri;
-        }
-        await uploadToSupabase(uploadUri);
-      } catch (error) {
-        console.error("頭貼縮圖失敗:", error);
-        Alert.alert("上傳失敗", "圖片處理失敗，請換一張圖片再試");
-        setIsUploading(false);
-      }
+  // 2026-10-12：拿掉 allowsEditing/aspect（系統內建裁切畫面），改成選完原圖後完全自己用
+  // ImageManipulator 置中裁成正方形再縮圖——有些廠牌（例如本次遇到的 OPPO/ColorOS）的系統
+  // 裁切介面找不到確認按鈕，使用者會卡在裁切畫面出不來；不依賴各家不一致的原生裁切 UI 就不會有這個問題。
+  // 共用的裁切＋縮圖＋上傳流程，「拍照」「從相簿選擇」都走這一個函式
+  const processAndUploadAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    setIsUploading(true);
+    try {
+      const squareSize = Math.min(asset.width, asset.height);
+      const originX = Math.floor((asset.width - squareSize) / 2);
+      const originY = Math.floor((asset.height - squareSize) / 2);
+      const manipulated = await ImageManipulator.manipulate(asset.uri)
+        .crop({ originX, originY, width: squareSize, height: squareSize })
+        .resize({ width: AVATAR_MAX_SIZE, height: AVATAR_MAX_SIZE })
+        .renderAsync();
+      const saved = await manipulated.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
+      await uploadToSupabase(saved.uri);
+    } catch (error) {
+      console.error("頭貼裁切/縮圖失敗:", error);
+      Alert.alert("上傳失敗", "圖片處理失敗，請換一張圖片再試");
+      setIsUploading(false);
     }
+  };
+
+  // 2026-10-12：部分機型（例如 OPPO/ColorOS 舊機種）的系統相簿選擇器會卡在「僅允許存取所選的
+  // 相片」這個狀態，無法選到其他照片，而且解除安裝重裝也清不掉這個記錄（記錄在系統媒體服務、
+  // 不是存在我們的 App 裡）。補上「拍照」選項當作相簿選擇器壞掉時的備援管道，相機權限是獨立的，
+  // 不會受相簿選擇器這個問題影響
+  const handlePickImage = () => {
+    Alert.alert('更換頭貼', '請選擇圖片來源', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '拍照',
+        onPress: async () => {
+          const result = await ImagePicker.launchCameraAsync({ quality: 1 });
+          if (!result.canceled && result.assets[0]) {
+            processAndUploadAsset(result.assets[0]);
+          }
+        },
+      },
+      {
+        text: '從相簿選擇',
+        onPress: async () => {
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 1, // 不在這裡壓縮，統一交給 processAndUploadAsset 處理
+          });
+          if (!result.canceled && result.assets[0]) {
+            processAndUploadAsset(result.assets[0]);
+          }
+        },
+      },
+    ]);
   };
 
 const uploadToSupabase = async (uri: string) => {

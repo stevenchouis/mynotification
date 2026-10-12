@@ -29,8 +29,8 @@
 ## Done definition
 - [x] 前端 `settings.tsx`、`my-code.tsx` 完成，`tsc`/`lint` 乾淨
 - [x] back-end 新增欄位、PUT/GET、好友 API fallback 並部署（commit 9bb2905，migration e62e472e4275，2026-09-19 已上線，契約與本 plan 一致；`UserUpdate.username` 已移除；`PUT /users/me` 目前只處理 `avatar_url`／`nickname`，`birthday` 欄位 schema 有收但 endpoint 未套用）
-- [ ] 兩帳號實測通過
-- [ ] Commit
+- [x] 兩帳號實測通過（hotmail／gmail 互為好友，2026-10-12 使用者確認暱稱正確顯示）
+- [x] Commit（`dcc72c3`，已完成）
 
 ## Open questions
 - （已解決）`UserUpdate.username` 已由 back-end 移除

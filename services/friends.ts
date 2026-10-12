@@ -25,3 +25,9 @@ export async function respondToFriendRequest(id: number, action: FriendRequestAc
 export async function sendGreeting(friendshipId: number, message: string): Promise<void> {
   await api.post(`/api/v1/friends/${friendshipId}/greetings`, { message });
 }
+
+// 商品分享給好友（規劃中，見 plan-product-share-friends.md）。後端會驗證關係是 accepted、
+// 商品存在且上架，推播給對方時順帶帶商品圖（image_url），前端不用另外處理圖片
+export async function shareProduct(friendshipId: number, productId: number): Promise<void> {
+  await api.post(`/api/v1/friends/${friendshipId}/share-product`, { product_id: productId });
+}

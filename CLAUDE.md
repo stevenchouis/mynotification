@@ -18,6 +18,24 @@ npm run web        # 在瀏覽器中執行
 npm run lint       # 執行 ESLint
 ```
 
+### 本地 Dev Server（實體手機 + USB）
+
+手機上的 App（Dev Client，`eas build --profile development` 建置出來的原生殼）跟 VS Code 裡的 Dev Server（Metro Bundler）是兩個獨立的東西：前者裝一次之後不用常常重裝（除非動到原生設定，見下方「什麼時候需要重新 build」），後者負責即時把 TypeScript/JSX 原始碼打包成 JS bundle 給手機。流程：
+
+1. 用 USB 傳輸線把手機接上電腦，手機要先在「開發人員選項」開啟 USB 偵錯；第一次接上時手機通常會跳出「是否允許這台電腦進行 USB 偵錯」的授權對話框，要按「允許」
+2. 終端機執行 `npm start`（= `expo start`）啟動 Metro Bundler（本機的 HTTP + WebSocket server，預設 port 8081）
+3. 等終端機顯示互動選單（QR Code + 按鍵提示）後，按下 `a` 鍵
+
+**按下 `a` 之後，Expo CLI 會做這些事：**
+- 透過 adb（Android Debug Bridge）偵測目前有哪些 Android 裝置連著（USB 接的實體手機、或正在跑的模擬器都算）
+- 對該裝置執行 `adb reverse`，把手機要用的 Metro port（8081 等）反向轉發到電腦本機，讓手機可以直接透過這條 USB 連線跟 Metro 溝通——**這跟 Wi-Fi 無關**，只要 USB 接著就能連上 Metro，不需要手機跟電腦在同一個 Wi-Fi（下面「環境變數」一節提到 `EXPO_PUBLIC_API_URL` 要填區網 IP，那是給後端 API 呼叫用的，是另一回事，兩者不要混淆）
+- 如果手機上已經裝好 Dev Client，會用 Android intent 直接打開它，並把它指向這次的 Metro Server 網址，App 開啟後立刻跟 Metro 要 JS bundle 並渲染畫面
+- 如果手機上還沒裝 Dev Client，終端機會改顯示提示（例如詢問要不要裝 Expo Go，或提示要先建置/安裝 Dev Client）
+
+App 開起來之後，之後在 VS Code 改 code 存檔，Metro 會透過已經建立好的連線把異動的 module 即時推給手機（Fast Refresh／Hot Reload），畫面局部更新、App 不會重啟，也不用重新按 `a`；`console.log` 或錯誤也會透過同一條連線回傳到 VS Code 終端機。
+
+**什麼時候 Fast Refresh 救不了、需要重新 `eas build`**：只要改動的是編譯進原生殼裡的東西（新增/移除需要原生模組的套件、`app.json` 裡的原生設定如 `android.package`／`android.googleServicesFile`／icon／splash 背景色／權限等），就必須重新建置整個 Dev Client 並重裝，單純 reload JS 不會生效（CLAUDE.md 其他段落提到的 `google-services.json`、`expo-camera`、LINE SDK 都是這類例子）。
+
 ## 環境變數
 
 在專案根目錄建立 `.env` 檔案，並設定以下必要變數：

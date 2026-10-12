@@ -81,12 +81,12 @@ sequenceDiagram
 - 不涉及長時間執行流程，不需要額外的 stress test
 
 ## Done definition
-- [ ] 已跟 back-end 確認 `/api/v1/friends/*` 端點契約並等待部署
-- [ ] `app/friends/*` 四個畫面完成，`tsc`/`lint` 乾淨
-- [ ] 「我的」分頁 header 右上角新增好友入口圖示
-- [ ] 推播點擊能正確導到好友頁
-- [ ] 3 個端對端測試都通過（需要兩台裝置、需要 EAS Dev Build 重新建置含 `expo-camera`）
-- [ ] Commit 說明正確標示 AI 協作
+- [x] 已跟 back-end 確認 `/api/v1/friends/*` 端點契約並部署（2026-09-19 上線，見 CLAUDE.md 後端路由章節）
+- [x] `app/friends/*` 四個畫面完成，`tsc`/`lint` 乾淨
+- [x] 「我的」分頁 header 右上角新增好友入口圖示
+- [x] 推播點擊能正確導到好友頁
+- [x] 端對端測試：兩帳號（hotmail／gmail）互加好友、快速訊息、暱稱顯示皆已使用者實機確認通過（2026-10-12）；相機掃描 QR 的原始加好友流程使用者先前已測過 OK
+- [x] Commit（`1e5fc02`，已完成；說明有標示 AI 協作）
 
 ## Risks & rollback
 - 風險：`expo-camera` 是原生模組，這次改動無法用 Expo Go 完整測試，必須重新建置 Dev Build，測試週期會拉長

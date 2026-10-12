@@ -3,11 +3,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
+import FriendAvatar from '../../components/FriendAvatar';
 import Text from '../../components/Text';
 import { ThemeColors } from '../../constants/Colors';
 import { useThemeColors } from '../../hooks/useThemeColors';
@@ -16,18 +16,6 @@ import { useFriendStarStore } from '../../store/useFriendStarStore';
 import { Friend, FriendRequest, FriendRequestAction } from '../../types/friends';
 
 type Section = 'friends' | 'requests';
-
-function Avatar({ uri, size = 48 }: { uri: string | null; size?: number }) {
-  const colors = useThemeColors();
-  const style = { width: size, height: size, borderRadius: size / 2 };
-  return uri ? (
-    <Image source={{ uri }} style={style} contentFit="cover" />
-  ) : (
-    <View style={[style, { backgroundColor: colors.tint, justifyContent: 'center', alignItems: 'center' }]}>
-      <Ionicons name="person" size={size * 0.5} color={colors.onTint} />
-    </View>
-  );
-}
 
 export default function FriendsScreen() {
   const router = useRouter();
@@ -122,7 +110,7 @@ export default function FriendsScreen() {
               style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
               onPress={() => router.push({ pathname: '/friends/[friendshipId]', params: { friendshipId: String(item.friendship_id) } })}
             >
-              <Avatar uri={item.avatar_url} />
+              <FriendAvatar uri={item.avatar_url} />
               <Text style={styles.name} numberOfLines={1}>{item.username}</Text>
               {starredIds.includes(item.friendship_id) && (
                 <Ionicons name="star" size={18} color={colors.warning} />
@@ -145,7 +133,7 @@ export default function FriendsScreen() {
           }
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Avatar uri={item.avatar_url} />
+              <FriendAvatar uri={item.avatar_url} />
               <Text style={styles.name} numberOfLines={1}>{item.username}</Text>
               <Pressable
                 style={styles.rejectButton}

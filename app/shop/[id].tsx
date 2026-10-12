@@ -1,19 +1,23 @@
 // app/shop/[id].tsx
 // 商品詳情頁：選數量、加入購物車。跟 app/coupon/[id].tsx 一樣是掛在根 Stack 底下的詳情頁。
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
+import FriendPickerSheet from '../../components/FriendPickerSheet';
 import Text from '../../components/Text';
 import { ThemeColors } from '../../constants/Colors';
 import { useShopFavorites } from '../../hooks/useShopFavorites';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import { shareProduct } from '../../services/friends';
 import { fetchShopProductById } from '../../services/shop';
 import { useCartStore } from '../../store/useCartStore';
+import { Friend } from '../../types/friends';
 
 export default function ShopProductDetailScreen() {
   const router = useRouter();
@@ -26,6 +30,10 @@ export default function ShopProductDetailScreen() {
 
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
+  // 商品分享給好友（規劃中，見 plan-product-share-friends.md），彈窗開關跟分享中的
+  // mutation 狀態分開管理：分享中要把彈窗鎖住（FriendPickerSheet 的 isSubmitting），
+  // 不是直接關閉，避免使用者在請求還沒回來前又點了第二位好友
+  const [isPickerVisible, setIsPickerVisible] = useState(false);
 
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ['shop-product', id],
@@ -38,6 +46,22 @@ export default function ShopProductDetailScreen() {
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1500);
   };
+
+  const shareMutation = useMutation({
+    mutationFn: (friend: Friend) => shareProduct(friend.friendship_id, Number(id)),
+    onSuccess: () => {
+      setIsPickerVisible(false);
+      Toast.show({ type: 'success', text1: '已分享給好友' });
+    },
+    onError: (error: any) => {
+      const detail = error.response?.data?.detail;
+      // 409（還不是好友）是物件型 detail，其餘（404 商品不存在/已下架）是純文字 detail，
+      // 比照好友功能其他端點既有的錯誤判斷慣例
+      const message = (typeof detail === 'string' ? detail : detail?.message) || '分享失敗，請稍後再試';
+      setIsPickerVisible(false);
+      Alert.alert('錯誤', message);
+    },
+  });
 
   if (isLoading) {
     return (
@@ -66,6 +90,13 @@ export default function ShopProductDetailScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View>
           <Image source={{ uri: product.thumbnail }} style={styles.image} contentFit="cover" />
+          <Pressable
+            style={styles.shareButton}
+            onPress={() => setIsPickerVisible(true)}
+            hitSlop={8}
+          >
+            <Ionicons name="paper-plane-outline" size={18} color={colors.textSubtle} />
+          </Pressable>
           <Pressable
             style={styles.favoriteButton}
             onPress={() => toggleFavorite(product)}
@@ -119,6 +150,14 @@ export default function ShopProductDetailScreen() {
           </Text>
         </Pressable>
       </View>
+
+      <FriendPickerSheet
+        visible={isPickerVisible}
+        onClose={() => setIsPickerVisible(false)}
+        onSelectFriend={(friend) => shareMutation.mutate(friend)}
+        isSubmitting={shareMutation.isPending}
+        title="分享給好友"
+      />
     </View>
   );
 }
@@ -134,6 +173,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   image: { width: '100%', aspectRatio: 1, backgroundColor: colors.surface },
   favoriteButton: {
     position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center'
+  },
+  // 分享按鈕疊在收藏按鈕左邊（見 plan-product-share-friends.md），兩顆都是固定白底、
+  // 不隨深色模式變色，比照收藏按鈕既有做法——疊在商品照片上，需要跟照片維持對比
+  shareButton: {
+    position: 'absolute', top: 16, right: 60, width: 36, height: 36, borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center'
   },
   body: { padding: 20 },

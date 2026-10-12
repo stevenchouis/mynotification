@@ -55,6 +55,13 @@ function TransactionRow({
           <Text style={styles.rowRestaurant}>門市：{restaurantName}</Text>
         )}
         <Text style={styles.rowDate}>{new Date(tx.created_at).toLocaleString('zh-TW')}</Text>
+        {/* 只有 earn 類型會有 expires_at（見 types/loyalty.ts 註解），這批點數到期提醒
+            推播（見 plan-points-expiry-reminder.md）上線後，使用者點進畫面卻看不到
+            是哪一筆點數快到期，這裡補上顯示；已過期/已折抵的 earn 紀錄也會顯示當初的
+            到期日，純粹是歷史資訊，不代表這批點數現在還有效 */}
+        {tx.type === 'earn' && tx.expires_at && (
+          <Text style={styles.rowExpiry}>到期日：{new Date(tx.expires_at).toLocaleDateString('zh-TW')}</Text>
+        )}
       </View>
       <Text style={[styles.rowAmount, { color }]}>
         {display.sign}{tx.amount} 點
@@ -190,6 +197,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   rowOrderAmount: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   rowRestaurant: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   rowDate: { fontSize: 11, color: colors.textSubtle, marginTop: 4 },
+  rowExpiry: { fontSize: 11, color: colors.textSubtle, marginTop: 2 },
   rowAmount: { fontSize: 15, fontWeight: '700' },
 
   emptyContainer: { alignItems: 'center', paddingTop: 60 },

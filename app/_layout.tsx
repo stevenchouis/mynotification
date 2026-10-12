@@ -144,11 +144,16 @@ export default function RootLayout() {
       router.push(`/order/${data.order_id}`);
     } else if (data.screen === "NotificationInbox") {
       router.push('/inbox');
-    } else if (data.screen === "Points" && data.store_checkout_id) {
-      // 門市收銀完成推播（type: "store_checkout_completed"，見 plan-member-code-checkout.md），
-      // 點數餘額/明細剛入帳，導去前先 invalidate 一次確保不是舊快取
-      queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
-      queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
+    } else if (data.screen === "Points") {
+      // 「紅利點數」畫面目前有兩種推播來源共用同一個 screen 值：
+      // 1. 門市收銀完成（type: "store_checkout_completed"，見 plan-member-code-checkout.md），
+      //    帶 store_checkout_id，點數餘額/明細剛入帳，需要 invalidate 一次確保不是舊快取
+      // 2. 點數即將到期提醒（type: "points_expiring_soon"，見 plan-points-expiry-reminder.md），
+      //    不帶 store_checkout_id，單純導頁即可，畫面本來就會顯示最新餘額，不需要特別 invalidate
+      if (data.store_checkout_id) {
+        queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+        queryClient.invalidateQueries({ queryKey: ['loyalty-transactions'] });
+      }
       router.push('/points');
     } else if (data.screen === "Friends") {
       // 三種好友推播共用（type: friend_request／friend_request_accepted／friend_greeting），

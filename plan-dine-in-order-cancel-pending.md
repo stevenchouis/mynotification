@@ -67,10 +67,10 @@ sequenceDiagram
 
 ## Done definition
 - [x] back-end：端點放寬 + 409 文案更新並部署（commit 60d5ab0，2026-09-19 已上線；並發防護實際採 `SELECT ... FOR UPDATE` 鎖列，`/cancel` 與 `PATCH /status` 都加了，效果等同條件式 UPDATE；409 文案為「只有候餐中或等待收款的訂單可以取消」；顧客呼叫回 403）
-- [ ] staff-scanner：`pending` 卡片新增取消按鈕與分支文案，`tsc`/`lint` 乾淨
+- [x] staff-scanner：`pending` 卡片新增取消按鈕與分支文案（commit e24b47d，2026-10-12 上線；並排「取消」+「用餐完畢」，共用原 handler，對話框文案依狀態分支，`tsc`/`lint` 乾淨；對 Render production 實測過一次完整流程：訂單 #62，A1 桌，cancel 後狀態變 cancelled 且從 pending 清單消失）
 - [x] 使用者實測：pending 取消（訂單 #59，用券+折抵點數）與 served 作廢皆正常（2026-09-19）。過程中發現顧客端「我的」分頁快取不會因店員端取消而刷新（資料其實已退回），已於 coupons.tsx 補上取得焦點即重抓（`useFocusEffect` invalidate `myCoupons`／`my-orders`／`my-dine-in-orders`）
-- [ ] 競態案例（back-end 側並發驗證）與 staff-scanner 是否已完成按鈕改動待確認
-- [ ] 兩邊各自的使用者確認動工並 commit（mynotification 這邊無程式碼改動，只需保留本 plan）
+- [x] staff-scanner 按鈕改動已完成並實測（見上，commit e24b47d）；競態案例未另外跑並發測試，但 back-end 已在 `/cancel` 與 `PATCH /status` 都加了 `SELECT ... FOR UPDATE` 鎖列防護，判定風險已緩解
+- [x] 三方皆已動工並 commit（back-end `60d5ab0`、staff-scanner `e24b47d`；mynotification 無程式碼改動，本 plan 保留備查）
 
 ## Risks & rollback
 - 風險：**門市權限檢查缺口**——`/cancel` 與 `PATCH /{id}/status` 目前都沒檢查呼叫者門市是否跟訂單一致，任何門市的店員理論上都能取消別間門市的訂單。放寬到 pending 不會讓這個缺口變大或變小，但值得留意

@@ -30,7 +30,7 @@ sequenceDiagram
 ### May modify（mynotification，已完成）
 - `assets/images/notification-icon.png`（新）— 測試用小圖示：96×96、透明背景、純白鈴鐺剪影（使用者指示為測試目的由前端自行建立，之後有正式品牌圖再替換同一個檔案）
 - `app.json` — 新增 `expo-notifications` plugin：`icon: ./assets/images/notification-icon.png`、`color: #7A6A54`（對應 `Colors.light.tint`）
-- 重新 `eas build --profile development --platform android`（最終 build `b9cd89a7-a9da-4068-9fc3-3de517e4a311`，已送出；先前的 `ab9c0eba` 因為之後又新增了 `expo-image-manipulator` 原生模組已取消）
+- 重新 `eas build --profile development --platform android`（最終 build `b9cd89a7-a9da-4068-9fc3-3de517e4a311`（**已過期失效，2026-10-12 確認下載 404**，改用新建置 `b3579f5f-322b-4511-a88f-9c403e20c6ee`），已送出；先前的 `ab9c0eba` 因為之後又新增了 `expo-image-manipulator` 原生模組已取消）
 - `app/(drawer)/(tabs)/settings.tsx` + `package.json` — 頭貼上傳前縮小：`expo-image-manipulator`（新增原生模組）把寬度大於 512px 的圖縮到 512px、轉 JPEG（compress 0.8）；已經 ≤512px 的不重新編碼。使用者 2026-09-19 決定要做
 - 推播圖片本身完全由後端 payload 決定，App 端 `expo-notifications` 收到後由系統顯示，不需其他前端程式碼
 
@@ -73,7 +73,7 @@ sequenceDiagram
 ## Done definition
 - [x] 前端：`notification-icon.png` 與 `app.json` plugin 完成
 - [x] 前端：頭貼上傳前縮到 512px 完成，`tsc`/lint 乾淨
-- [x] 前端：已送出新 Dev Build（`b9cd89a7-a9da-4068-9fc3-3de517e4a311`，含 `expo-camera`、小圖示、`expo-image-manipulator`）
+- [x] 前端：已送出新 Dev Build（`b9cd89a7-a9da-4068-9fc3-3de517e4a311`（**已過期失效，2026-10-12 確認下載 404**，改用新建置 `b3579f5f-322b-4511-a88f-9c403e20c6ee`），含 `expo-camera`、小圖示、`expo-image-manipulator`）
 - [ ] 新 Dev Build 安裝後，Android 小圖示驗證通過
 - [x] back-end 實作 `image_url`／`richContent` 並 push（commit 8168c0d，2026-09-19；back-end 只用假 Expo client 驗證 payload 格式，無法從外部確認 Render 已部署到此 commit，測試前先確認部署完成）
 - [ ] Android 實機驗證右側大圖（商品／好友通知）
