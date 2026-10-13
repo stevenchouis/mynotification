@@ -1,122 +1,73 @@
-# Plan: 商店（購物車 + 結帳）功能
+# Plan: 開場 Splash Screen 改版 + 新增 Welcome Screen
 
 ## Goal
-使用者要在 `mynotification` 加入一條完整獨立於現有 DummyJSON 展示頁的真實購物流程：瀏覽自家後端商品（`back-end` session 剛完成的 `GET /api/v1/products`，含分類篩選與站內搜尋）、加入購物車、送出訂單（`POST /api/v1/orders`）、在既有的「我的優惠券」分頁（改名為「我的」）查看訂單記錄（`GET /api/v1/orders/me`）。完成的定義：Tab Bar 新增「商店」分頁，可以用分類標籤與搜尋列篩選商品 Grid；點商品進獨立的商品詳情頁可以選數量、加入購物車；購物車畫面可以調整/移除品項、按「送出訂單」呼叫後端；成功後顯示訂單狀態為 `pending`（**這次不做 ECPay 收銀台導轉**，等後端拿到金鑰後再補）；原本的「我的優惠券」分頁改名為「我的」，內容除了既有的優惠券區塊，新增一個「我的訂單」區塊可以查歷史訂單、點進去看明細。既有的 DummyJSON 展示頁（首頁／收藏／搜尋）完全不動、不共用程式碼。
+App 啟動流程目前是「原生 Splash（純圖示，無文字，無固定時間）→ 字型/登入狀態就緒 → 直接進首頁或登入頁」。使用者希望：
+1. **Splash Screen 本身要改版**——換成電商風格的圖片＋文字（品牌名稱＋標語），不是現在的空白單圖示。
+2. **Splash 之後、進首頁或登入頁之前，新增一個獨立的 Welcome Screen**——單頁設計：品牌 Logo/標語 + 一個「開始使用」按鈕，**每次關閉 App 再重新打開都會顯示**（不論當下是否已登入），按下按鈕才繼續往下走（已登入進首頁、未登入進登入頁）。
+
+完成的定義：App 從完全關閉的狀態重新開啟，依序看到「原生 Splash（新圖樣）→ Welcome 畫面 → 按下開始使用 → 首頁或登入頁」，不會有任何畫面之間露出空白的情況。
 
 ## Architecture / flow
 
 ```mermaid
-flowchart TD
-    subgraph ShopTab["app/(drawer)/(tabs)/shop.tsx（新，Tab Bar 第 6 個分頁）"]
-        Grid[商品 Grid FlashList]
-        CategoryTabs[分類標籤]
-        SearchBar[搜尋列 本機即時過濾]
-        CartPill[購物車角標按鈕]
-    end
-
-    subgraph Detail["app/shop/[id].tsx（新，Stack 詳情頁）"]
-        ProdInfo[圖片/價格/描述]
-        QtyStepper[數量選擇]
-        AddBtn[加入購物車]
-    end
-
-    subgraph CartScreen["app/cart.tsx（新，Stack 頁）"]
-        CartList[購物車品項列表\n小計=加入當下價格快照]
-        Checkout[送出訂單按鈕]
-    end
-
-    subgraph MyTab["app/(drawer)/(tabs)/coupons.tsx（改，Tab 標題→「我的」）"]
-        SectionSwitch[區段切換：優惠券／我的訂單]
-        CouponList[優惠券列表 既有不變]
-        OrderList[我的訂單列表 新]
-    end
-
-    OrderDetail["app/order/[id].tsx（新，Stack 訂單詳情）"]
-
-    Grid -->|router.push| Detail
-    AddBtn -->|寫入| CartStore[(store/useCartStore.ts\nSecureStore 持久化)]
-    CartPill -->|router.push| CartScreen
-    CartList -->|讀取| CartStore
-    Checkout -->|POST /orders| ShopAPI[services/shop.ts]
-    ShopAPI -->|Order pending| CheckoutResult[Alert 成功 + router.replace 到「我的」]
-    CheckoutResult --> MyTab
-    OrderList -->|router.push| OrderDetail
-
-    Grid -->|GET /products 一次抓全部\n分類/搜尋皆本機過濾| ShopAPI
-    ProdInfo -->|GET /products/:id| ShopAPI
-    OrderList -->|GET /orders/me| ShopAPI
-    ShopAPI -->|api 實例| ExistingAPI[services/api.ts 既有]
-
-    style ShopTab fill:#dff0d8,stroke:#3c763d
-    style Detail fill:#dff0d8,stroke:#3c763d
-    style CartScreen fill:#dff0d8,stroke:#3c763d
-    style OrderDetail fill:#dff0d8,stroke:#3c763d
-    style ShopAPI fill:#dff0d8,stroke:#3c763d
-    style CartStore fill:#dff0d8,stroke:#3c763d
-    style OrderList fill:#dff0d8,stroke:#3c763d
-    style SectionSwitch fill:#dff0d8,stroke:#3c763d
+stateDiagram-v2
+    [*] --> NativeSplash
+    NativeSplash --> FallbackSplash: JS 執行環境啟動
+    FallbackSplash --> FallbackSplash: 字型/Token 檢查中
+    FallbackSplash --> Welcome: isReady = true
+    Welcome --> Welcome: 使用者尚未按「開始使用」
+    Welcome --> RouterStack: 按下「開始使用」
+    RouterStack --> Home: 已登入（userToken 存在）
+    RouterStack --> Login: 未登入
 ```
 
 ## Scope
 
-### May modify / create
-- `services/shop.ts`（新）— `fetchShopProducts()`／`fetchShopProductById(id)`／`createOrder(items)`／`fetchMyOrders()`，全部透過既有的 `services/api.ts` 的 `api` 實例呼叫
-- `types/shop.ts`（新）— `ShopProduct`／`Order`／`OrderItem`／`OrderStatus` 型別
-- `store/useCartStore.ts`（新）— 本機購物車，比照 `store/useFavoritesStore.ts` 的 Zustand `persist` + SecureStore 寫法
-- `app/(drawer)/(tabs)/shop.tsx`（新）— 商店分頁：一次抓全部商品（`GET /products`，不分頁，只有 194 筆），分類標籤與搜尋列都是**本機即時過濾**這份已抓到的資料，不會每次切分類/打字都重新打 API
-- `app/shop/[id].tsx`（新）— 商品詳情頁
-- `app/cart.tsx`（新）— 購物車頁
-- `app/order/[id].tsx`（新）— 訂單詳情頁
-- `app/(drawer)/(tabs)/coupons.tsx`（**改**）— Tab 標題改「我的」；畫面內加一個頂部區段切換（優惠券／我的訂單）兩個分頁按鈕，既有優惠券篩選/列表邏輯完全不變，只是包進「優惠券」這個區段；新增「我的訂單」區段渲染訂單列表（`fetchMyOrders()`），點進去導到 `app/order/[id].tsx`
-- `app/(drawer)/(tabs)/_layout.tsx` — 新增一個 `Tabs.Screen name="shop"`，`tabBarBadge` 讀 `useCartStore` 品項數量（比照現有「我的收藏」`favoriteCount` 徽章寫法）；`coupons` 分頁的 `title` 改成「我的」
-- `app/(drawer)/_layout.tsx` — `TAB_TITLES.coupons` 從 `'我的優惠券'` 改成 `'我的'`；新增 `shop: '商店'`
-- `app/_layout.tsx` — 在 `Stack.Protected guard={!!userToken}` 區塊內新增 3 個 `Stack.Screen`（`shop/[id]`／`cart`／`order/[id]`，都是 `headerShown: true` + `headerBackTitle: '返回'`，比照現有 `coupon/[id]`／`search` 的寫法）
+### May modify
+- `app.json` — `expo-splash-screen` plugin 設定：`image` 換成新的電商風格合成圖，新增 `dark.image`（原本只有 `dark.backgroundColor`，深色模式現在也要換圖）
+- `assets/images/splash-icon.png`（**覆蓋既有檔案**，已先確認是 git 追蹤的檔案，若不滿意可用 `git checkout -- assets/images/splash-icon.png` 還原）、新增 `assets/images/splash-icon-dark.png`、新增 `assets/images/welcome-product.png`（純去背商品圖，無文字，給 Welcome Screen 用）
+- `components/FallbackSplash.tsx` — 改成依 `useResolvedScheme()` 顯示對應的 light/dark 圖，跟原生 Splash 保持一致
+- `components/WelcomeScreen.tsx`（新）— Welcome 畫面本身，單純的 React 元件（不是 Expo Router 路由），比照 `FallbackSplash.tsx` 的定位：一張全螢幕畫面，吃 `onContinue` callback
+- `app/_layout.tsx` — 新增 `hasSeenWelcome` 狀態，`isReady` 之後、渲染主要 `Stack` 之前先渲染 `WelcomeScreen`，按下按鈕才切換渲染 `Stack`（原本的 `Stack.Protected` 登入/未登入分流完全不動，Welcome 純粹是疊在它前面的一層）
 
 ### Must not modify
-- `services/products.ts`、`app/(drawer)/(tabs)/home.tsx`、`app/(drawer)/(tabs)/favorites.tsx`、`app/search.tsx` — DummyJSON 展示頁，刻意保持獨立、不共用程式碼
-- `store/useFavoritesStore.ts` — 收藏/願望清單改存 DB 是另一個獨立範圍（見 `backlog.md`），這次不動
-- `coupons.tsx` 既有的優惠券篩選/排序/隱藏舊資料邏輯——只是外面包一層區段切換，內部行為不變
-- 不做 ECPay 收銀台導轉（WebView/瀏覽器跳轉），等 `back-end` 補上「導去綠界的網址/表單參數」端點後再開新 plan
+- `app/_layout.tsx` 裡 `Stack.Protected` 的登入/未登入分流邏輯本身——不改動，Welcome 只是多一層「要不要渲染 Stack」的開關，不涉及改動原本的路由保護機制
+- `app/index.tsx`（登入頁）、`(drawer)` 內的所有畫面——這次不改內容，只是「什麼時候看得到它們」多了一關
+- 不做「只給新使用者看一次」的版本（已跟使用者確認是每次重開都要看，不用 SecureStore/AsyncStorage 記錄是否看過）
 
 ## Existing patterns to follow
-- **列表 + 詳情頁結構**：比照 `app/(drawer)/(tabs)/coupons.tsx` + `app/coupon/[id].tsx`（`Pressable` 卡片、詳情頁在 `app/` 底下的 Stack 路由、`Alert` 顯示錯誤/成功訊息）—— `order/[id].tsx` 是同一套邏輯換資料源
-- **商品 Grid + 分類/搜尋**：比照 `home.tsx` 的 `FlashList<Product>` + `numColumns={3}` 卡片版面、`categoryScroll`/`categoryTab` 分類標籤樣式；搜尋列樣式比照 `search.tsx` 的 `searchBar`（但這裡不用 debounce/不用另開畫面，本機陣列 `.filter()` 即時算)
-- **本機持久化 store**：比照 `store/useFavoritesStore.ts` 的 `persist` + `secureJSONStorage` 寫法
-- **主題**：所有新/改動畫面用 `useThemeColors()` + `useMemo(() => createStyles(colors), [colors])`
-- **圖片**：一律用 `expo-image` 的 `Image`
-- **API 呼叫**：一律從 `services/api.ts` 匯入共用的 `api` 實例
-- **區段切換 UI**：比照 `coupons.tsx` 既有的篩選 Pill（`filterTab`/`filterTabActive`）樣式，新增的「優惠券／我的訂單」切換做成同樣視覺語言的兩顆大 Pill
+- 全螢幕佔位元件：比照 `components/FallbackSplash.tsx` 的寫法（純 `View` + `Image`，不是路由，用 `useThemeColors()`/`useResolvedScheme()` 取色）
+- 按鈕樣式：比照 `app/register.tsx` 的主要按鈕（`colors.tint` 底、`colors.onTint` 文字）
+- 電商素材取材：比照 `app/(drawer)/(tabs)/home.tsx` 的大輪播／`PromoCarousel`，抓 DummyJSON 的真實商品照片做展示用素材（選的是 `sunglasses` 分類裡的 Classic Sun Glasses 照片，沒有明顯品牌字樣）
+- 沒有 header 的全螢幕畫面要包 `SafeAreaView`（`react-native-safe-area-context`），比照 `app/index.tsx`／`app/magic-login.tsx`
 
 ## Constraints
-- 不新增第三方套件（`react-native-webview` 等 ECPay 導轉需要的套件留到下一個 plan 再裝）
-- 分類清單不額外呼叫後端 API（back-end 目前沒有 `/products/categories` 端點）——用第一次 `GET /products` 抓回的完整 194 筆資料，前端自己 `Set` 出不重複的 `category` 值來畫分類標籤
-- 搜尋是本機 `title`/`description` 字串比對（`includes`），不是後端全文搜尋——194 筆資料量小，不需要額外的搜尋 API
-- 訂單金額/庫存以後端回應為準；購物車畫面顯示的小計只是「加入購物車當下價格 × 數量」的估算值，要清楚標示「僅供參考，實際金額以送出結果為準」
-- 結帳按鈕文案要誠實反映目前只到 `pending` 狀態（例如用「送出訂單」而非「立即付款」）
+- 原生 Splash（`app.json` 設定的這張）是靜態圖片，**手機開啟 App 當下、JS 都還沒執行就會顯示**，沒辦法做成即時抓網路圖片、也沒辦法用 React 元件疊文字上去——所以文字（品牌名稱＋標語）必須直接合成進圖片本身，不是即時渲染的
+- Welcome Screen 則是正常的 React 畫面（JS 已經在跑），所以文字/按鈕都是即時渲染、會跟著主題色走，不是圖片的一部分——商品圖本身是去背透明圖（`welcome-product.png`），疊在畫面上，不是另外合成好文字的圖
+- 深色模式：原生 Splash 現在會依系統/使用者設定顯示不同的合成圖（light 米白底／dark 深棕底，文字顏色各自對應），這是新增的能力（原本 `app.json` 只有 `dark.backgroundColor`，圖片是共用同一張）
+- **這是原生設定變更**（`app.json` 的 `expo-splash-screen` plugin），改完**需要重新 `eas build`** 才會反映在 Dev Build 上，單純 reload JS 不會讓新的原生 Splash 生效；但 Welcome Screen 本身是純 JS 元件，不需要重建
 
 ## Verification
-- 3 個端對端測試（手動操作，肉眼確認）：
-  1. Happy path：商店分頁看到商品 Grid，點分類標籤確認只顯示該分類商品，打搜尋關鍵字確認即時過濾 → 點一個商品進詳情頁 → 選數量 2 → 加入購物車 → 分頁角標數字變成 2 → 進購物車看到正確品項與數量 → 送出訂單 → 顯示成功訊息（pending）→ 導到「我的」分頁，切到「我的訂單」區段，看到剛剛那筆排最上面 → 點進去看到品項明細與 `merchant_trade_no`
-  2. 錯誤案例：手動把某商品庫存改 0（或調整數量超過庫存）再結帳，確認後端回 409 時畫面顯示清楚錯誤訊息，購物車內容保留可調整重試
-  3. 錯誤案例：購物車是空的時候，「送出訂單」按鈕 disabled 或提示「購物車是空的」，不會送出空 items 請求
-- 手動驗證：實機淺色/深色模式各跑一次 Happy path；App 完全關閉重開後購物車品項還在；「我的」分頁在「優惠券」/「我的訂單」兩個區段來回切換時既有優惠券功能（篩選/核銷連結）沒有壞掉
-- 不涉及長時間執行流程，不需要額外的 stress test
+- 3 個端對端測試：
+  1. Happy path（已登入帳號）：完全關閉 App → 重新開啟 → 依序看到新版原生 Splash → Welcome 畫面 → 按「開始使用」→ 直接進首頁，整段過程沒有露出空白畫面
+  2. Happy path（未登入／剛登出）：同上流程，但按「開始使用」後應該進登入頁，不是首頁
+  3. 深色模式：手機系統設定（或 App 內「外觀模式」）切到深色，重複測試 1，確認原生 Splash 跟 Welcome 畫面都是深色對應的圖樣與配色，不是淺色圖硬套在深色底上
+- 手動驗證：Magic Link 深層連結冷啟動（見 Risks，這個情境下 Welcome 畫面是否要攔住、或是否要跳過，需要使用者確認後再測）
+- 不需要壓力測試，這是純展示性的啟動流程，沒有長時間執行的疑慮
 
 ## Done definition
-- [x] 商店分頁：Grid、分類標籤、搜尋列都正常運作（本機過濾）——程式碼已完成，待實機驗證
-- [x] 商品詳情頁可選數量並加入購物車——程式碼已完成，待實機驗證
-- [x] 購物車頁可調整數量／移除品項，送出訂單成功顯示 pending 狀態——程式碼已完成，待實機驗證
-- [x] 「我的」分頁新增「我的訂單」區段，既有優惠券區段功能不變——程式碼已完成，待實機驗證
-- [ ] 3 個端對端測試都通過——待實機操作驗證
-- [x] 首頁／收藏／搜尋（DummyJSON 展示頁）完全沒被改動
-- [ ] PR/commit 說明正確標示 AI 協作——尚未 commit
+- [x] 新的 Splash 合成圖（light/dark 各一張）與 Welcome 用的去背商品圖都已確認滿意
+- [x] `app.json`、`FallbackSplash.tsx`、`WelcomeScreen.tsx`、`app/_layout.tsx` 改完，`tsc`/`lint` 乾淨
+- [ ] 重新 `eas build --profile development --platform android`（已送出，build `b013e446-5232-446b-b8d2-51cd0410d770`），新 Dev Build 裝上後 3 個端對端測試待使用者實機驗證
+- [ ] Magic Link 冷啟動情境的行為待實機驗證（設計上已接受「多按一次」，見 Open questions）
+- [ ] Commit
 
 ## Risks & rollback
-- 風險：Tab Bar 從 5 個變 6 個，小螢幕裝置圖示可能太擠，需要實機確認排版
-- 風險：`coupons.tsx` 是既有已上線的畫面，這次改動要小心別動到既有優惠券篩選/排序/核銷連結的行為，只加不改
-- 風險：購物車只在本機（SecureStore），換裝置/重灌 App 會消失——使用者已確認不需要跨裝置同步
-- 風險：`POST /orders` 目前只到 `pending`，UI 文案需清楚溝通避免誤導成已付款成功
-- Rollback：全部是新檔案 + 4 處小範圍修改（`(tabs)/_layout.tsx`、`(drawer)/_layout.tsx`、根 `_layout.tsx`、`coupons.tsx`），`git diff`/還原這幾個檔案即可完整回退
+- 風險：**Magic Link 深層連結衝突**——`app/_layout.tsx` 現有設計刻意把 `magic-login` 這個畫面放在 `Stack.Protected` 判斷之外，確保不論登入狀態都能被導航到；但如果 Welcome 畫面擋在整個 `Stack` 渲染之前，使用者從信箱點 Magic Link 冷啟動 App 時，會先看到 Welcome 畫面、按下「開始使用」後才會真正導航到 `magic-login` 完成登入，多一次點擊。這次先接受這個小落差（多按一下），不特別偵測「是不是透過深層連結開啟」來跳過 Welcome，之後如果體感太差再處理
+- 風險：`assets/images/splash-icon.png` 是直接覆蓋既有檔案（原本是純圖示、無文字），已確認是 git 追蹤檔案，不滿意可用 `git checkout -- assets/images/splash-icon.png` 還原
+- Rollback：`app.json` 的 Splash 設定與新增的三個圖片檔案都是獨立改動，`git diff`/`git checkout` 可以完整還原；`WelcomeScreen.tsx`／`app/_layout.tsx` 的改動範圍小且集中，还原也單純
+
+**實機測試發現並已修正（2026-10-13）**：`FallbackSplash.tsx`（字型/登入狀態檢查中顯示的純圖片）跟後面的 `WelcomeScreen` 視覺上刻意延續（同樣的標題/商品照風格），使用者分不出兩者是不同階段，會覺得「畫面一開始沒有按鈕，等一陣子按鈕才冒出來」，不知道前段在等什麼。已在 `FallbackSplash.tsx` 疊一個轉圈動畫在大概是 Welcome 按鈕會出現的位置，換成 Welcome 畫面時轉圈被真正按鈕取代，體感連續。純 JS 改動，不需要重建。
 
 ## Open questions
-- ~~`home.tsx` 的 QuickActions「我的優惠券」入口、`settings.tsx` 選單的「我的優惠券」文字要不要一起改？~~ **已確認：一起改成「我的」**，兩處連去的仍是同一個 `/coupons` 路由不變，`home.tsx` 的 `QUICK_ACTIONS` 常數與 `settings.tsx` 的選單項文字都同步更新，納入 May modify 清單。
+- 全部已確認（2026-10-13）：商標疑慮已解決（改用無品牌字樣的太陽眼鏡照片）；文案「寶雅電子商城」／「發現好物，從這裡開始」OK；Magic Link 多按一次的落差可接受，不做額外偵測；Welcome 視覺風格（淺色米白／深色炭褐底 + 商品圖置中 + 文字）OK。計畫已核准，開始實作

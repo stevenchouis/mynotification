@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useFocusEffect } from '@react-navigation/native';
 import { createClient } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +8,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -16,6 +18,7 @@ import { ThemeColors } from '../../../constants/Colors';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { api } from '../../../services/api';
 import { fetchLoyaltyBalance } from '../../../services/loyalty';
+import { NicknameFormValues, nicknameSchema } from '../../../schemas/userSchema';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
 import { ThemeMode, useThemeModeStore } from '../../../store/useThemeModeStore';
@@ -58,7 +61,15 @@ export default function SettingsScreen() {
   // 避免使用者以為沒反應而連按、或在套用途中又切換成另一個
   const [pendingMode, setPendingMode] = useState<ThemeMode | null>(null);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
-  const [nicknameDraft, setNicknameDraft] = useState('');
+  const {
+    control: nicknameControl,
+    handleSubmit: handleNicknameSubmit,
+    reset: resetNicknameForm,
+    formState: { errors: nicknameErrors },
+  } = useForm<NicknameFormValues>({
+    resolver: zodResolver(nicknameSchema),
+    defaultValues: { nickname: '' },
+  });
 
   const { data: loyaltyBalance } = useQuery({
     queryKey: ['loyalty-balance'],
@@ -133,8 +144,12 @@ export default function SettingsScreen() {
   });
 
   const openNicknameEditor = () => {
-    setNicknameDraft(user?.nickname ?? '');
+    resetNicknameForm({ nickname: user?.nickname ?? '' });
     setIsEditingNickname(true);
+  };
+
+  const onSubmitNickname = (data: NicknameFormValues) => {
+    updateNicknameMutation.mutate(data.nickname.trim());
   };
 
   // 4. Android 穩定版圖片轉換函式 (使用 XMLHttpRequest)
@@ -404,15 +419,25 @@ const uploadToSupabase = async (uri: string) => {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>設定暱稱</Text>
             <Text style={styles.modalHint}>好友會看到這個名稱，最多 20 字；留空則清除暱稱</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={nicknameDraft}
-              onChangeText={setNicknameDraft}
-              maxLength={20}
-              autoFocus
-              placeholder="請輸入暱稱"
-              placeholderTextColor={colors.textSubtle}
+            <Controller
+              control={nicknameControl}
+              name="nickname"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[styles.modalInput, nicknameErrors.nickname && styles.modalInputError]}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  maxLength={20}
+                  autoFocus
+                  placeholder="請輸入暱稱"
+                  placeholderTextColor={colors.textSubtle}
+                />
+              )}
             />
+            {nicknameErrors.nickname && (
+              <Text style={styles.modalErrorText}>{nicknameErrors.nickname.message}</Text>
+            )}
             <View style={styles.modalButtonRow}>
               <Pressable style={styles.modalCancelButton} onPress={() => setIsEditingNickname(false)}>
                 <Text style={styles.modalCancelText}>取消</Text>
@@ -420,7 +445,7 @@ const uploadToSupabase = async (uri: string) => {
               <Pressable
                 style={styles.modalSaveButton}
                 disabled={updateNicknameMutation.isPending}
-                onPress={() => updateNicknameMutation.mutate(nicknameDraft.trim())}
+                onPress={handleNicknameSubmit(onSubmitNickname)}
               >
                 {updateNicknameMutation.isPending ? (
                   <ActivityIndicator color={colors.onTint} />
@@ -607,6 +632,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12,
     paddingVertical: 10, fontSize: 16, color: colors.text, backgroundColor: colors.background,
   },
+  modalInputError: { borderColor: colors.danger },
+  modalErrorText: { fontSize: 12, color: colors.danger, marginTop: 4 },
   modalButtonRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
   modalCancelButton: {
     flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',

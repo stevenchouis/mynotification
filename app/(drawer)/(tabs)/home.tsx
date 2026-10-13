@@ -28,6 +28,7 @@ import { useThemeColors } from '../../../hooks/useThemeColors';
 import {
   ALL_CATEGORY, fetchCategories, fetchProducts, Product, ProductCategory, PRODUCTS_API
 } from '../../../services/products';
+import { fetchMarqueeTexts } from '../../../services/marquee';
 import { fetchPromoBanners } from '../../../services/promotions';
 import { useFavoritesStore } from '../../../store/useFavoritesStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
@@ -69,7 +70,9 @@ async function fetchBannerImages(): Promise<string[]> {
   return data.products.map((p) => p.images?.[0]).filter((url): url is string => !!url);
 }
 
-const MARQUEE_TEXT = '🌿 新優惠券已上架　會員日活動開跑　感謝您使用 mynotification　';
+// 後端清單為空（還沒建資料）或請求失敗時的本機備援內容，避免跑馬燈整個消失、版面空一塊
+// （見 plan-marquee-backend.md）
+const DEFAULT_MARQUEE_TEXT = '🌿 新優惠券已上架　會員日活動開跑　感謝您使用 mynotification　';
 
 interface QuickAction {
   id: string;
@@ -137,6 +140,22 @@ function Marquee() {
   const [textWidth, setTextWidth] = useState(0);
   const translateX = useSharedValue(0);
 
+  // 跑馬燈內容改由後端資料庫提供（見 plan-marquee-backend.md）。清單為空或請求失敗時
+  // 退回本機預設文字，不會讓這塊整個消失或顯示空白
+  const { data: marqueeTexts } = useQuery({
+    queryKey: ['marquee'],
+    queryFn: fetchMarqueeTexts,
+  });
+  const marqueeText = marqueeTexts && marqueeTexts.length > 0
+    ? marqueeTexts.join('　')
+    : DEFAULT_MARQUEE_TEXT;
+
+  // marqueeText 剛開始是本機預設文字，等後端資料回來可能會換成不同長度的內容，
+  // 這時候要重新量一次寬度，不能沿用舊的量測結果
+  useEffect(() => {
+    setTextWidth(0);
+  }, [marqueeText]);
+
   useEffect(() => {
     if (textWidth === 0) return;
     translateX.value = 0;
@@ -154,6 +173,14 @@ function Marquee() {
   return (
     <View style={styles.marqueeContainer}>
       <Ionicons name="megaphone" size={16} color={colors.onTint} style={styles.marqueeIcon} />
+      {/* 2026-10-13 暫時退回最原始寫法（View + overflow:hidden + numberOfLines={1}）。
+          當天改用資料庫提供的兩句話接起來後，文字變長，發現這個手刻 Marquee 排版有既有缺陷：
+          文字會被截斷成「...」或被迫換行。試過 flexShrink:0、alignSelf:'flex-start'、
+          position:'absolute' 量測寬度、改用 ScrollView 等多種做法都沒能徹底解決（ScrollView
+          版本還會噴 "ScrollView child layout must be applied through the
+          contentContainerStyle Prop" render error 讓畫面整個崩潰），先退回不會崩潰的版本，
+          只是維持原本「文字過長會截斷」的瑕疵，detail 記錄在 plan-marquee-backend.md，
+          留給下一個 session 用全新思路排查，不要重複試過的這幾種做法 */}
       <View style={styles.marqueeTextClip}>
         <Animated.View style={[styles.marqueeTrack, animatedStyle]}>
           <Text
@@ -161,9 +188,9 @@ function Marquee() {
             numberOfLines={1}
             onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)}
           >
-            {MARQUEE_TEXT}
+            {marqueeText}
           </Text>
-          <Text style={styles.marqueeText} numberOfLines={1}>{MARQUEE_TEXT}</Text>
+          <Text style={styles.marqueeText} numberOfLines={1}>{marqueeText}</Text>
         </Animated.View>
       </View>
     </View>
@@ -576,6 +603,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14
   },
   marqueeIcon: { marginRight: 10 },
+  // 這裡實際上是套在 ScrollView 的 style（視窗/裁切範圍），不是 contentContainerStyle，
+  // 所以 flex:1/height 控制的是可視範圍大小，ScrollView 預設就會裁切超出範圍的內容，
+  // 不需要額外的 overflow:hidden（見 Marquee 元件 JSX 裡的完整說明）
   marqueeTextClip: { flex: 1, height: '100%', justifyContent: 'center', overflow: 'hidden' },
   marqueeTrack: { flexDirection: 'row' },
   marqueeText: { fontSize: 13, color: colors.onTint, paddingHorizontal: 4 },

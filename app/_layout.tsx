@@ -17,14 +17,16 @@ import * as Notifications from 'expo-notifications';
 import { Href, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 // 1. 匯入你的 AuthStore
 import { useAuthStore } from '../store/useAuthStore';
 import AppToast from '../components/AppToast';
+import DebugErrorBoundary from '../components/DebugErrorBoundary';
 import FallbackSplash from '../components/FallbackSplash';
+import WelcomeScreen from '../components/WelcomeScreen';
 import { Colors } from '../constants/Colors';
 import { useResolvedScheme } from '../hooks/useThemeColors';
 import { queryClient } from '../services/queryClient';
@@ -61,9 +63,33 @@ const darkNavTheme: NavTheme = {
 // 先閃過一片空白（return null）畫面。必須在 module 層級呼叫，元件外只需執行一次。
 SplashScreen.preventAutoHideAsync();
 
+// 暫時除錯用（見 plan.md「已登入卻出現兩次 Welcome 畫面」待查）：DebugErrorBoundary 只能攔到
+// render 階段的錯誤，effect/事件處理常式/Promise 裡丟出的錯誤不會經過它，這裡額外掛一個全域
+// handler 補這個缺口，排查完會拿掉
+const previousErrorHandler = ErrorUtils.getGlobalHandler();
+ErrorUtils.setGlobalHandler((error, isFatal) => {
+  console.log('[DEBUG] 全域未捕捉錯誤：', error.message, 'isFatal:', isFatal);
+  previousErrorHandler(error, isFatal);
+});
+
+// 暫時除錯用：module 層級變數，只有整個 JS 執行環境真的重啟（bundle 重新載入）才會歸零；
+// 如果「RootLayout mounted」印第二次時這個數字不是從 1 開始，代表還是同一個 JS 環境，
+// 只是 React 把這個元件重新建立了一次（純 React 層級的 remount），不是 bundle 重載
+let debugModuleLoadCount = (globalThis as any).__debugModuleLoadCount ?? 0;
+debugModuleLoadCount += 1;
+(globalThis as any).__debugModuleLoadCount = debugModuleLoadCount;
+console.log('[DEBUG] _layout.tsx module 執行次數：', debugModuleLoadCount);
+
 export default function RootLayout() {
   const router = useRouter();
   const scheme = useResolvedScheme();
+
+  // 暫時除錯用（見 plan.md「已登入卻出現兩次 Welcome 畫面」待查）：確認 RootLayout 有沒有
+  // 被重新掛載過，排查完會拿掉
+  useEffect(() => {
+    console.log('[DEBUG] RootLayout mounted');
+    return () => console.log('[DEBUG] RootLayout UNMOUNTED');
+  }, []);
 
   // 全域繁中字型（Noto Sans TC），載入完成前先不渲染畫面，避免先閃過系統預設字型
   const [fontsLoaded] = useFonts({
@@ -99,15 +125,21 @@ export default function RootLayout() {
   }, []);
 
   const isReady = fontsLoaded && !isLoading;
+  // 每次 App 重新啟動都要看過一次 Welcome 畫面（見 plan.md），不記錄「看過了」的狀態，
+  // 單純靠這個 useState 預設值在每次 JS 重新啟動時自然重置
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
   // App 完全關閉時被推播點擊冷啟動，JS bundle 載入完成的當下 isReady 通常還是 false
   // （字型/Token 都還沒準備好，下面的 `if (!isReady)` 分支會 return <FallbackSplash />、
   // Stack 導覽容器根本還沒掛載），這時候呼叫 router.push 會因為沒有掛載中的導覽容器而被無聲吞掉。
-  // 用 ref 記錄當下 isReady，讓 4. 的監聽器可以判斷「現在能不能直接導頁」而不是讀到 render 當下的舊值。
-  const isReadyRef = useRef(isReady);
+  // Welcome 畫面插進 Splash 跟 Stack 之間後，Stack 真正掛載的條件變成 isReady 且已經按過
+  // 「開始使用」，用 ref 記錄這個組合值，讓 4. 的監聽器可以判斷「現在能不能直接導頁」
+  // 而不是讀到 render 當下的舊值。
+  const isStackMounted = isReady && hasSeenWelcome;
+  const isStackMountedRef = useRef(isStackMounted);
   useEffect(() => {
-    isReadyRef.current = isReady;
-  }, [isReady]);
+    isStackMountedRef.current = isStackMounted;
+  }, [isStackMounted]);
 
   const pendingNotificationDataRef = useRef<Record<string, any> | null>(null);
   // getLastNotificationResponseAsync() 補查冷啟動情境時，可能跟 4. 的 listener 重複拿到同一則
@@ -175,10 +207,11 @@ export default function RootLayout() {
     // （前景收到推播時是靠 (tabs)/_layout.tsx 的監聽器 invalidate，這裡是另一條路徑，要各自處理）
     queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
-    if (isReadyRef.current) {
+    if (isStackMountedRef.current) {
       navigateFromNotificationData(data);
     } else {
-      // Stack 還沒掛載，先記住導頁目標，等下面「isReady 轉 true」的 effect 補做
+      // Stack 還沒掛載（字型/Token 還沒就緒，或還停在 Welcome 畫面），先記住導頁目標，
+      // 等下面「isStackMounted 轉 true」的 effect 補做
       pendingNotificationDataRef.current = data;
     }
   }, [navigateFromNotificationData]);
@@ -200,15 +233,17 @@ export default function RootLayout() {
     });
   }, [handleNotificationResponse]);
 
-  // 4c. isReady 從 false 轉 true（字型/Token 都準備好、Stack 剛掛載完成）時，
-  // 補做冷啟動期間被暫存下來、當時無法導頁的那次點擊
+  // 4c. isStackMounted 從 false 轉 true（字型/Token 都準備好、使用者也按過 Welcome 畫面的
+  // 「開始使用」、Stack 剛掛載完成）時，補做冷啟動期間被暫存下來、當時無法導頁的那次點擊。
+  // 注意：如果使用者是被推播冷啟動、但一直停在 Welcome 畫面不按「開始使用」，這次導頁會
+  // 一直等到他按下去才補做——這是刻意接受的小落差（跟 Magic Link 深層連結同一種取捨，見 plan.md）
   useEffect(() => {
-    if (isReady && pendingNotificationDataRef.current) {
+    if (isStackMounted && pendingNotificationDataRef.current) {
       const data = pendingNotificationDataRef.current;
       pendingNotificationDataRef.current = null;
       navigateFromNotificationData(data);
     }
-  }, [isReady, navigateFromNotificationData]);
+  }, [isStackMounted, navigateFromNotificationData]);
 
   // 5. 字型與 Token 都準備好才關閉原生 Splash，畫面切換時已經是完整內容，不會露出空白
   useEffect(() => {
@@ -217,11 +252,26 @@ export default function RootLayout() {
     }
   }, [isReady]);
 
+  // 暫時除錯用，排查完會拿掉
+  console.log('[DEBUG] render', { isReady, hasSeenWelcome, fontsLoaded, isLoading, userToken: !!userToken });
+
   // 6. 還沒準備好時渲染跟原生 Splash 外觀一致的畫面（而不是 return null），避免原生 Splash
   // 關閉時機（尤其 Android 12+ 系統 Splash、或從背景恢復）跟這裡的 isReady 沒對齊時，
   // 中間露出一段真正的空白畫面
   if (!isReady) {
     return <FallbackSplash />;
+  }
+
+  // 7. Splash 之後、Stack（首頁或登入頁）之前插入 Welcome 畫面，每次重新開啟 App 都要看過一次
+  // （見 plan.md），不論登入與否；按下「開始使用」後 hasSeenWelcome 變 true，才會往下渲染真正
+  // 的 Stack。獨立包一層 SafeAreaProvider 是因為 WelcomeScreen 內部用了 SafeAreaView，
+  // 下面主要的 return 分支也會包一次，但因為這裡跟主要分支是互斥的 early return，不會同時掛載
+  if (!hasSeenWelcome) {
+    return (
+      <SafeAreaProvider>
+        <WelcomeScreen onContinue={() => setHasSeenWelcome(true)} />
+      </SafeAreaProvider>
+    );
   }
 
   // 在 _layout.tsx 的回傳部分可以這樣優化
@@ -241,6 +291,7 @@ export default function RootLayout() {
               一樣會被判定為「不是 Screen」而在 console 狂噴 "Layout children must be of type
               Screen" 警告（雖然畫面沒問題，但每次重新 render 都會再印一次）。改用 Expo Router 官方
               提供的 `<Stack.Protected guard={...}>` 包一整組畫面，才是正確、不會噴警告的寫法。 */}
+          <DebugErrorBoundary>
           <Stack screenOptions={{ headerShown: false }}>
             {/* Magic Link 的 deep link 落地畫面，不論登入狀態都要能被導航到 */}
             <Stack.Screen name="magic-login" />
@@ -439,6 +490,7 @@ export default function RootLayout() {
               />
             </Stack.Protected>
           </Stack>
+          </DebugErrorBoundary>
           {/* 全站 Toast 統一顯示在下方（套件內建的 bottom 置中橫幅），不用每個 Toast.show() 呼叫
               自己指定 position，這裡設一次全域生效；細節見 components/AppToast.tsx */}
           <AppToast />
