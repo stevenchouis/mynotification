@@ -4,8 +4,11 @@ import {
   NotoSansTC_600SemiBold,
   NotoSansTC_700Bold,
   NotoSansTC_900Black,
-  useFonts,
 } from '@expo-google-fonts/noto-sans-tc';
+// useFonts 刻意用 expo-font 的版本，不用 @expo-google-fonts 套件附的那個：後者的 useState 初始值寫死 false，
+// 每次掛載都要等一次非同步載入才變 true，萬一這個元件被重新掛載（見 store/useWelcomeStore.ts），
+// 會先 render 一次 isReady=false、閃一下 FallbackSplash 轉圈；expo-font 的版本會先同步檢查字型是否已載入
+import { useFonts } from 'expo-font';
 import {
   DarkTheme as NavDarkTheme,
   DefaultTheme as NavDefaultTheme,
@@ -17,14 +20,14 @@ import * as Notifications from 'expo-notifications';
 import { Href, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 // 1. 匯入你的 AuthStore
 import { useAuthStore } from '../store/useAuthStore';
+import { useWelcomeStore } from '../store/useWelcomeStore';
 import AppToast from '../components/AppToast';
-import DebugErrorBoundary from '../components/DebugErrorBoundary';
 import FallbackSplash from '../components/FallbackSplash';
 import WelcomeScreen from '../components/WelcomeScreen';
 import { Colors } from '../constants/Colors';
@@ -63,33 +66,9 @@ const darkNavTheme: NavTheme = {
 // 先閃過一片空白（return null）畫面。必須在 module 層級呼叫，元件外只需執行一次。
 SplashScreen.preventAutoHideAsync();
 
-// 暫時除錯用（見 plan.md「已登入卻出現兩次 Welcome 畫面」待查）：DebugErrorBoundary 只能攔到
-// render 階段的錯誤，effect/事件處理常式/Promise 裡丟出的錯誤不會經過它，這裡額外掛一個全域
-// handler 補這個缺口，排查完會拿掉
-const previousErrorHandler = ErrorUtils.getGlobalHandler();
-ErrorUtils.setGlobalHandler((error, isFatal) => {
-  console.log('[DEBUG] 全域未捕捉錯誤：', error.message, 'isFatal:', isFatal);
-  previousErrorHandler(error, isFatal);
-});
-
-// 暫時除錯用：module 層級變數，只有整個 JS 執行環境真的重啟（bundle 重新載入）才會歸零；
-// 如果「RootLayout mounted」印第二次時這個數字不是從 1 開始，代表還是同一個 JS 環境，
-// 只是 React 把這個元件重新建立了一次（純 React 層級的 remount），不是 bundle 重載
-let debugModuleLoadCount = (globalThis as any).__debugModuleLoadCount ?? 0;
-debugModuleLoadCount += 1;
-(globalThis as any).__debugModuleLoadCount = debugModuleLoadCount;
-console.log('[DEBUG] _layout.tsx module 執行次數：', debugModuleLoadCount);
-
 export default function RootLayout() {
   const router = useRouter();
   const scheme = useResolvedScheme();
-
-  // 暫時除錯用（見 plan.md「已登入卻出現兩次 Welcome 畫面」待查）：確認 RootLayout 有沒有
-  // 被重新掛載過，排查完會拿掉
-  useEffect(() => {
-    console.log('[DEBUG] RootLayout mounted');
-    return () => console.log('[DEBUG] RootLayout UNMOUNTED');
-  }, []);
 
   // 全域繁中字型（Noto Sans TC），載入完成前先不渲染畫面，避免先閃過系統預設字型
   const [fontsLoaded] = useFonts({
@@ -125,9 +104,10 @@ export default function RootLayout() {
   }, []);
 
   const isReady = fontsLoaded && !isLoading;
-  // 每次 App 重新啟動都要看過一次 Welcome 畫面（見 plan.md），不記錄「看過了」的狀態，
-  // 單純靠這個 useState 預設值在每次 JS 重新啟動時自然重置
-  const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
+  // 每次 App 重新啟動都要看過一次 Welcome 畫面（見 plan.md）。放記憶體 store 而不是 useState，
+  // 元件萬一被重新掛載也不會歸零、Welcome 不會出現兩次，原因詳見 store/useWelcomeStore.ts
+  const hasSeenWelcome = useWelcomeStore((state) => state.hasSeenWelcome);
+  const markWelcomeSeen = useWelcomeStore((state) => state.markWelcomeSeen);
 
   // App 完全關閉時被推播點擊冷啟動，JS bundle 載入完成的當下 isReady 通常還是 false
   // （字型/Token 都還沒準備好，下面的 `if (!isReady)` 分支會 return <FallbackSplash />、
@@ -252,9 +232,6 @@ export default function RootLayout() {
     }
   }, [isReady]);
 
-  // 暫時除錯用，排查完會拿掉
-  console.log('[DEBUG] render', { isReady, hasSeenWelcome, fontsLoaded, isLoading, userToken: !!userToken });
-
   // 6. 還沒準備好時渲染跟原生 Splash 外觀一致的畫面（而不是 return null），避免原生 Splash
   // 關閉時機（尤其 Android 12+ 系統 Splash、或從背景恢復）跟這裡的 isReady 沒對齊時，
   // 中間露出一段真正的空白畫面
@@ -269,7 +246,7 @@ export default function RootLayout() {
   if (!hasSeenWelcome) {
     return (
       <SafeAreaProvider>
-        <WelcomeScreen onContinue={() => setHasSeenWelcome(true)} />
+        <WelcomeScreen onContinue={markWelcomeSeen} />
       </SafeAreaProvider>
     );
   }
@@ -291,10 +268,7 @@ export default function RootLayout() {
               一樣會被判定為「不是 Screen」而在 console 狂噴 "Layout children must be of type
               Screen" 警告（雖然畫面沒問題，但每次重新 render 都會再印一次）。改用 Expo Router 官方
               提供的 `<Stack.Protected guard={...}>` 包一整組畫面，才是正確、不會噴警告的寫法。 */}
-          <DebugErrorBoundary>
           <Stack screenOptions={{ headerShown: false }}>
-            {/* Magic Link 的 deep link 落地畫面，不論登入狀態都要能被導航到 */}
-            <Stack.Screen name="magic-login" />
             <Stack.Protected guard={!!userToken}>
               {/* 已登入：把 (drawer) 放在最上面，App 啟動會直接進入主頁面（Drawer 裡包著原本的 (tabs)） */}
               <Stack.Screen name="(drawer)" />
@@ -489,8 +463,12 @@ export default function RootLayout() {
                 }}
               />
             </Stack.Protected>
+            {/* Magic Link 的 deep link 落地畫面，不論登入狀態都要能被導航到。刻意排在兩組 Protected
+                「後面」：啟動網址 `/`（index）被 Protected 擋住時，Expo Router 會改導到 Stack 裡
+                「第一個可以進的畫面」，以前這行排第一個，已登入啟動時會先被導進 magic-login
+                （畫面閃一下「登入中，請稍候...」再自己 replace 回 /home），也連帶讓 RootLayout 被重新掛載 */}
+            <Stack.Screen name="magic-login" />
           </Stack>
-          </DebugErrorBoundary>
           {/* 全站 Toast 統一顯示在下方（套件內建的 bottom 置中橫幅），不用每個 Toast.show() 呼叫
               自己指定 position，這裡設一次全域生效；細節見 components/AppToast.tsx */}
           <AppToast />
