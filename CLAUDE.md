@@ -46,6 +46,8 @@ EXPO_PUBLIC_SUPABASE_URL=<supabase-project-url>
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
 ```
 
+**EAS 雲端建置（`preview`／`production`）讀不到本機的 `.env*`**：這些檔案都在 `.gitignore` 裡，EAS 只上傳 git 追蹤的檔案，所以雲端打包時所有 `EXPO_PUBLIC_*` 都是空的（2026-10-15 踩過：Preview 版進「帳號設定」因 `supabaseUrl is required` 閃退，所有自家 API 呼叫也會打到 `api.ts` 的預設假網址）。這些變數已用 `eas env:create --environment preview --environment production --visibility plaintext` 登記到 EAS 專案（`EXPO_PUBLIC_*` 本來就會被打包進 App，不是機密），**之後新增或修改 `EXPO_PUBLIC_*` 變數，本機 `.env` 跟 EAS 兩邊都要改**（`eas env:list preview` 可檢查）。Development Build 不受影響，因為它的 JS 是本機 Metro 打包、會讀本機 `.env`；另外本機 `.env.local` 優先權高於 `.env.development`，目前本機開發實際連的也是 Render 正式後端。
+
 後端是 FastAPI 伺服器。在實體裝置上測試時，`EXPO_PUBLIC_API_URL` 必須使用區域網路（LAN）IP，而非 `localhost`，因為裝置與開發機雖然在同一個 Wi-Fi 下，但仍是不同的主機。
 
 ### Android 推播（FCM V1）
