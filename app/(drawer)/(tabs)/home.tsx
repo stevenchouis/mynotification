@@ -1,6 +1,6 @@
 // app/(drawer)/(tabs)/home.tsx
 // 首頁改版：測試 @shopify/flash-list、react-native-reanimated-carousel（輪播）、
-// 手刻 Marquee（跑馬燈）三個 UI 元件，版面配置參考 MUJI 官網（大留白、無襯線字、木質/大地色系、極簡卡片列表）。
+// Marquee（跑馬燈，@homielab/react-native-auto-scroll）三個 UI 元件，版面配置參考 MUJI 官網（大留白、無襯線字、木質/大地色系、極簡卡片列表）。
 // 商品卡片與分類標籤資料來自公開測試 API（DummyJSON），僅供前端展示用；輪播橫幅仍是假資料，
 // 之後若要接真實內容（行銷橫幅、真正的商品/優惠），需要後端新增對應的資料模型與 API。
 import { Ionicons } from '@expo/vector-icons';
@@ -12,15 +12,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, View
 } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import AutoScroll from '@homielab/react-native-auto-scroll';
 import { Carousel } from 'react-native-reanimated-carousel';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
@@ -72,7 +67,9 @@ async function fetchBannerImages(): Promise<string[]> {
 
 // 後端清單為空（還沒建資料）或請求失敗時的本機備援內容，避免跑馬燈整個消失、版面空一塊
 // （見 plan-marquee-backend.md）
-const DEFAULT_MARQUEE_TEXT = '🌿 新優惠券已上架　會員日活動開跑　感謝您使用 mynotification　';
+// 跑馬燈膠囊高度：外框、AutoScroll、文字列三層共用同一個值，文字才能準確垂直置中（見 createStyles）
+const MARQUEE_HEIGHT = 40;
+const DEFAULT_MARQUEE_TEXT ='🌿 新優惠券已上架　會員日活動開跑　感謝您使用 mynotification　';
 
 interface QuickAction {
   id: string;
@@ -133,12 +130,13 @@ function shuffle<T>(array: T[]): T[] {
   return result;
 }
 
-// 手刻的跑馬燈：把文字重複兩份接在一起，動畫跑到第一份文字的寬度時無縫接回起點
+// 跑馬燈：2026-10-14 從手刻版本改用 @homielab/react-native-auto-scroll（純 JS 套件，不需重新 eas build）。
+// 手刻版本的文字是放在一般 View 裡，寬度會被外層容器限制住，長文字只能截斷或換行；這個套件內部用
+// horizontal ScrollView 當容器，內容寬度不受外層限制，可以量到文字的完整自然寬度再橫向捲動。
+// 除錯歷史見 plan-marquee-backend.md
 function Marquee() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [textWidth, setTextWidth] = useState(0);
-  const translateX = useSharedValue(0);
 
   // 跑馬燈內容改由後端資料庫提供（見 plan-marquee-backend.md）。清單為空或請求失敗時
   // 退回本機預設文字，不會讓這塊整個消失或顯示空白
@@ -150,48 +148,34 @@ function Marquee() {
     ? marqueeTexts.join('　')
     : DEFAULT_MARQUEE_TEXT;
 
-  // marqueeText 剛開始是本機預設文字，等後端資料回來可能會換成不同長度的內容，
-  // 這時候要重新量一次寬度，不能沿用舊的量測結果
-  useEffect(() => {
-    setTextWidth(0);
-  }, [marqueeText]);
-
-  useEffect(() => {
-    if (textWidth === 0) return;
-    translateX.value = 0;
-    translateX.value = withRepeat(
-      withTiming(-textWidth, { duration: textWidth * 20, easing: Easing.linear }),
-      -1,
-      false
-    );
-  }, [textWidth, translateX]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
   return (
     <View style={styles.marqueeContainer}>
       <Ionicons name="megaphone" size={16} color={colors.onTint} style={styles.marqueeIcon} />
-      {/* 2026-10-13 暫時退回最原始寫法（View + overflow:hidden + numberOfLines={1}）。
-          當天改用資料庫提供的兩句話接起來後，文字變長，發現這個手刻 Marquee 排版有既有缺陷：
-          文字會被截斷成「...」或被迫換行。試過 flexShrink:0、alignSelf:'flex-start'、
-          position:'absolute' 量測寬度、改用 ScrollView 等多種做法都沒能徹底解決（ScrollView
-          版本還會噴 "ScrollView child layout must be applied through the
-          contentContainerStyle Prop" render error 讓畫面整個崩潰），先退回不會崩潰的版本，
-          只是維持原本「文字過長會截斷」的瑕疵，detail 記錄在 plan-marquee-backend.md，
-          留給下一個 session 用全新思路排查，不要重複試過的這幾種做法 */}
+      {/* key={marqueeText}：文字從本機預設換成後端資料時整個重新掛載，讓套件重新量寬度、重算動畫，
+          不沿用舊文字的量測結果。子元素外面多包一層 View，因為套件會 clone 子元素塞 ref/onLayout，
+          自家的 components/Text 包裝元件沒有轉發 ref */}
       <View style={styles.marqueeTextClip}>
-        <Animated.View style={[styles.marqueeTrack, animatedStyle]}>
-          <Text
-            style={styles.marqueeText}
-            numberOfLines={1}
-            onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)}
-          >
-            {marqueeText}
-          </Text>
-          <Text style={styles.marqueeText} numberOfLines={1}>{marqueeText}</Text>
-        </Animated.View>
+        <AutoScroll key={marqueeText} style={styles.marqueeScroll} endPaddingWidth={40}>
+          <View style={styles.marqueeTextRow}>
+            <Text style={styles.marqueeText}>{marqueeText}</Text>
+          </View>
+        </AutoScroll>
+        {/* 左右兩側疊一層「膠囊底色 → 透明」的漸層，文字進出可視範圍時是淡入淡出，不是被硬切掉。
+            透明端用同色 + alpha 00（而非 'transparent'），避免 Android 漸層中間插值出一段灰黑色 */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[colors.tint, `${colors.tint}00`]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.marqueeFade, styles.marqueeFadeLeft]}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={[`${colors.tint}00`, colors.tint]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.marqueeFade, styles.marqueeFadeRight]}
+        />
       </View>
     </View>
   );
@@ -599,16 +583,22 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   promoSubtitle: { fontSize: 12, color: '#6B6558', marginTop: 2 },
 
   marqueeContainer: {
-    marginBottom: 16, height: 40, borderRadius: 20, backgroundColor: colors.tint,
+    marginBottom: 16, height: MARQUEE_HEIGHT, borderRadius: MARQUEE_HEIGHT / 2, backgroundColor: colors.tint,
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14
   },
-  marqueeIcon: { marginRight: 10 },
-  // 這裡實際上是套在 ScrollView 的 style（視窗/裁切範圍），不是 contentContainerStyle，
-  // 所以 flex:1/height 控制的是可視範圍大小，ScrollView 預設就會裁切超出範圍的內容，
-  // 不需要額外的 overflow:hidden（見 Marquee 元件 JSX 裡的完整說明）
-  marqueeTextClip: { flex: 1, height: '100%', justifyContent: 'center', overflow: 'hidden' },
-  marqueeTrack: { flexDirection: 'row' },
-  marqueeText: { fontSize: 13, color: colors.onTint, paddingHorizontal: 4 },
+  marqueeIcon: { marginRight: 12 },
+  // 可視（裁切）範圍，裡面放 AutoScroll 與左右淡出漸層。
+  // 套件內部的 ScrollView 會撐滿可用高度、但把內容排在最上方（沒辦法從外面調它的對齊），文字會偏上；
+  // 所以這層、AutoScroll 跟下面 marqueeTextRow 都固定成膠囊高度，垂直置中改由我們自己包的 marqueeTextRow 負責
+  marqueeTextClip: { flex: 1, height: MARQUEE_HEIGHT, overflow: 'hidden' },
+  marqueeScroll: { height: MARQUEE_HEIGHT },
+  marqueeFade: { position: 'absolute', top: 0, bottom: 0, width: 24 },
+  marqueeFadeLeft: { left: 0 },
+  marqueeFadeRight: { right: 0 },
+  marqueeTextRow: { height: MARQUEE_HEIGHT, justifyContent: 'center' },
+  // lineHeight 刻意指定：components/Text 預設的 fontSize×1.3（=17）比 Noto Sans TC 13 號字的自然高度（約 19）
+  // 還矮，Android 會從字的上緣扣掉不夠的空間，字形會往上偏
+  marqueeText: { fontSize: 13, lineHeight: 20, color: colors.onTint, paddingHorizontal: 4 },
 
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 12 },
   sectionAccentBar: { width: 4, height: 16, backgroundColor: colors.accent, borderRadius: 2, marginRight: 8 },

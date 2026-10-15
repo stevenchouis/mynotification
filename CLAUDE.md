@@ -130,7 +130,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 - `app/(drawer)/(tabs)/home.tsx` — 首頁，版面配置參考 MUJI 官網（大留白、木質/大地色系、極簡卡片列表），同時是測試多種列表/滾動元件的地方：
   - **輪播（`react-native-reanimated-carousel`）**：4 張橫幅，文案是假資料，背景圖抓 DummyJSON 商品的真實照片疊一層半透明黑色遮罩
-  - **Marquee 跑馬燈**：手刻（沒有另外裝套件），用 Reanimated 的 `withRepeat`，把文字重複兩份接在一起做無縫捲動
+  - **Marquee 跑馬燈**：用 `@homielab/react-native-auto-scroll`（純 JS 套件，不需重新 `eas build`），文字來自後端 `GET /marquee`（見 `plan-marquee-backend.md`）。2026-10-14 取代原本 Reanimated `withRepeat` 的手刻版本——手刻版的文字放在一般 `View` 裡，寬度被外層容器限制，長文字只能截斷或換行；套件內部用 horizontal `ScrollView` 當容器，內容寬度不受限。子元素要多包一層 `View`（套件會 clone 子元素塞 `ref`/`onLayout`，`components/Text` 沒有轉發 `ref`），並用 `key={marqueeText}` 讓文字變更時重新量寬度
   - **商品分類標籤**：抓 DummyJSON 的 `/products/categories`，點擊切換 `queryKey: ['products', category]`
   - **商品 Grid（`@shopify/flash-list` v2，`numColumns={3}`）**：候選池抓 30 筆（`fetchProducts`），實際顯示的 12 筆用 Fisher-Yates 洗牌隨機抽選；下拉重新整理（`onRefresh`）會重新 `refetch()` 再重新洗牌一次，確保每次下拉都看得出畫面有變化
   - **商品推薦（水平 `ScrollView`）**：卡片寬度約螢幕 62% 露出下一張的提示，下方是自製的捲動進度條（依 `onScroll` 的 `contentOffset.x` 換算比例，不是原生捲軸樣式）
