@@ -71,7 +71,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 - **Drawer 專屬頁的返回箭頭（`app/(drawer)/_layout.tsx` 的 `HeaderBackButton`）** — `about`/`faq`/`privacy` 是跟 `(tabs)` 同層的 Drawer 畫面（不是 `(tabs)` 的子畫面），底部 Tab Bar 是 `(tabs)` 巢狀導覽自己畫的，離開 `(tabs)` 進到這三頁後 Tab Bar 結構上就不會顯示；這是刻意接受的設計（改動小、風險低），不打算為了保留 Tab Bar 把這三頁重構進 `(tabs)` 底下。但 Drawer 預設 header 左上角只有選單漢堡按鈕、沒有返回箭頭，不管是從首頁功能 Grid 用 `router.push` 進來、還是從 Drawer 選單點進來都會卡住回不去，所以這三頁的 `headerLeft` 改用 `HeaderBackButton`（`navigation.canGoBack() ? navigation.goBack() : navigation.navigate('(tabs)')`）取代漢堡按鈕。`(tabs)` 底下的 5 個分頁（我的收藏／通知／設定／我的優惠券）維持原本的漢堡選單 + Tab Bar，不需要返回箭頭——這是正常的 Tab 行為，直接點首頁分頁就能回去，跟直接點底部分頁列效果一樣。
 
-- **首頁功能 Grid 與小型活動輪播（`app/(drawer)/(tabs)/home.tsx`）** — 首頁「歡迎回來」下方依序是：小型活動輪播（`PromoCarousel`）→ 3x3 功能 Grid（`QuickActionsGrid`）→ 大輪播（4 張橫幅）→ 跑馬燈 → 商品分類標籤。`QuickActionsGrid` 的 9 個入口（`QUICK_ACTIONS` 常數）全部對應 App 內既有畫面，用 `router.push('/xxx')` 導航（不含路由群組前綴，比照 `settings.tsx` 既有寫法），最後一個「全部服務」比較特殊，是用 `useNavigation()` + `DrawerActions.openDrawer()`（`@react-navigation/native`）開啟 Drawer 選單，不是 `router.push`；通知入口的紅點數字直接讀 `useNotificationStore` 的 `unreadCount`，跟 Tab Bar 徽章同一份即時資料，不是另外造的假資料。原本是 4x2（8 個入口），新增「紅利點數」後改成 3x3（9 個入口），`quickAction` 的 `width` 也從 `25%` 改成 `33.33%`。`PromoCarousel`（`PROMO_COPY` 常數）文案是純前端假資料，圖片則比照大輪播抓 DummyJSON 商品照片（`fetchPromoImages`，用 `skip` 參數跟大輪播的 `fetchBannerImages` 錯開，避免抓到重複圖片）；純文案的假資料之後若要改成後端可控（不用出 App 版本就能換活動內容），可以參考 `plan.md`（如果還在）或跟 `back-end` session 討論一張通用的 banner/promotion 表（`title`／`link_target`／`sort_order`／`start_at`／`end_at`／`is_active` 等欄位）。
+- **首頁功能 Grid 與小型活動輪播（`app/(drawer)/(tabs)/home.tsx`）** — 首頁「歡迎回來」下方依序是：小型活動輪播（`PromoCarousel`）→ 3x3 功能 Grid（`QuickActionsGrid`）→ 大輪播（4 張橫幅）→ 跑馬燈 → 商品分類標籤。`QuickActionsGrid` 的 9 個入口（`QUICK_ACTIONS` 常數）全部對應 App 內既有畫面，用 `router.push('/xxx')` 導航（不含路由群組前綴，比照 `settings.tsx` 既有寫法），最後一個「全部服務」比較特殊，是用 `useNavigation()` + `DrawerActions.openDrawer()`（`@react-navigation/native`）開啟 Drawer 選單，不是 `router.push`；通知入口的紅點數字直接讀 `useNotificationStore` 的 `unreadCount`，跟 Tab Bar 徽章同一份即時資料，不是另外造的假資料。原本是 4x2（8 個入口），新增「紅利點數」後改成 3x3（9 個入口），`quickAction` 的 `width` 也從 `25%` 改成 `33.33%`。`PromoCarousel` 的內容（`tag`／`title`／`subtitle`／`color`／`image_url`）由後端資料庫提供：`services/promotions.ts` 的 `fetchPromoBanners()` 打公開端點 `GET /api/v1/promotions/home-banners`（不需 token），`queryKey: ['promo-banners']`；改版前寫死的 `PROMO_COPY` + DummyJSON 圖片留成註解在 `home.tsx` 對照。大輪播（`BANNER_COPY`）目前仍是寫死的前端文案 + DummyJSON 圖片，尚未改由後端提供。
 
 ### 主題系統（Theme／深色模式）
 
@@ -211,6 +211,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | GET | `/api/v1/restaurants` | 公開端點，不需登入，列出所有門市（`id`／`name`），見「多門市（Restaurant）」章節 |
 | GET | `/api/v1/restaurants/{id}/tables` | 公開端點，不需登入，列出該門市底下的桌位（`id`／`code`／`restaurant_id`），不帶佔用狀態 |
 | GET | `/api/v1/menu-items` | 可加 `?restaurant_id=` 依門市篩選菜單，不帶維持舊行為（回全部） |
+| GET | `/api/v1/promotions/home-banners` | 公開端點，首頁小型活動輪播（`fetchPromoBanners()`），只回 `is_active` 且在 `start_at`/`end_at` 區間內、依 `sort_order` 排序 |
+| GET/POST/PATCH/DELETE | `/api/v1/promotions/admin`、`/api/v1/promotions`、`/api/v1/promotions/{id}` | 輪播管理（2026-10-16 上線，back-end `b027c8f`），`verify_admin_or_staff` 雙軌授權，只給 `staff-scanner` 用；圖片由 `staff-scanner` 直接上傳 Supabase Storage 的 `promotions` bucket（public、5 MB、`image/*`、只開 anon INSERT，檔名需唯一），後端只存 `image_url` 字串 |
 | POST | `/api/v1/dine-in-orders` | body 支援新的 `table_id`（會反查門市）或舊的 `table_number`（自由文字），至少要帶一個；mynotification 已全面改用 `table_id` |
 
 ### 表單驗證
