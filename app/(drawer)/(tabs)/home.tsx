@@ -17,6 +17,7 @@ import { Carousel } from 'react-native-reanimated-carousel';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import AnimatedQuickIcon, { QuickIconAnimation } from '../../../components/AnimatedQuickIcon';
 import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
 import { useThemeColors } from '../../../hooks/useThemeColors';
@@ -73,15 +74,20 @@ interface QuickAction {
   icon: keyof typeof Ionicons.glyphMap;
   route?: '/coupons' | '/favorites' | '/inbox' | '/settings' | '/faq' | '/about' | '/privacy' | '/points' | '/member-code';
   isDrawerToggle?: boolean;
+  // 有設定的入口改用動畫圖示（components/AnimatedQuickIcon.tsx），每 4 秒播一次；
+  // animationDelayMs 讓三個動畫錯開，不會同時動
+  animation?: QuickIconAnimation;
+  animationDelayMs?: number;
 }
 
 // 3x3 功能捷徑：全部對應 App 內既有畫面，不是假連結。原本的「隱私權政策」改放「會員條碼」
 // （門市收銀入口，見 plan-member-code-checkout.md），隱私權政策仍可從 Drawer 選單進入，不會完全不能用
 const QUICK_ACTIONS: QuickAction[] = [
   { id: 'coupons', label: '我的', icon: 'pricetag-outline', route: '/coupons' },
-  { id: 'points', label: '紅利點數', icon: 'star-outline', route: '/points' },
-  { id: 'favorites', label: '我的收藏', icon: 'heart-outline', route: '/favorites' },
-  { id: 'inbox', label: '通知中心', icon: 'notifications-outline', route: '/inbox' },
+  { id: 'points', label: '紅利點數', icon: 'star-outline', route: '/points', animation: 'twinkle', animationDelayMs: 1300 },
+  { id: 'favorites', label: '我的收藏', icon: 'heart-outline', route: '/favorites', animation: 'heartbeat', animationDelayMs: 0 },
+  // 鈴鐺只在有未讀通知時搖（見 QuickActionsGrid 的 active 判斷）
+  { id: 'inbox', label: '通知中心', icon: 'notifications-outline', route: '/inbox', animation: 'shake', animationDelayMs: 2600 },
   { id: 'settings', label: '帳號設定', icon: 'settings-outline', route: '/settings' },
   { id: 'faq', label: '常見問題', icon: 'help-circle-outline', route: '/faq' },
   { id: 'about', label: '關於此App', icon: 'information-circle-outline', route: '/about' },
@@ -213,7 +219,18 @@ function QuickActionsGrid() {
       {QUICK_ACTIONS.map((action) => (
         <Pressable key={action.id} style={styles.quickAction} onPress={() => handlePress(action)}>
           <View style={styles.quickIconCircle}>
-            <Ionicons name={action.icon} size={22} color={colors.textMuted} />
+            {action.animation ? (
+              <AnimatedQuickIcon
+                name={action.icon}
+                size={22}
+                color={colors.textMuted}
+                animation={action.animation}
+                delayMs={action.animationDelayMs}
+                active={action.id !== 'inbox' || unreadCount > 0}
+              />
+            ) : (
+              <Ionicons name={action.icon} size={22} color={colors.textMuted} />
+            )}
             {action.id === 'inbox' && unreadCount > 0 && (
               <View style={styles.quickBadge}>
                 <Text style={styles.quickBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
