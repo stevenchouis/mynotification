@@ -1,8 +1,8 @@
 // app/(drawer)/(tabs)/home.tsx
 // 首頁改版：測試 @shopify/flash-list、react-native-reanimated-carousel（輪播）、
 // Marquee（跑馬燈，@homielab/react-native-auto-scroll）三個 UI 元件，版面配置參考 MUJI 官網（大留白、無襯線字、木質/大地色系、極簡卡片列表）。
-// 商品卡片與分類標籤資料來自公開測試 API（DummyJSON），僅供前端展示用；輪播橫幅仍是假資料，
-// 之後若要接真實內容（行銷橫幅、真正的商品/優惠），需要後端新增對應的資料模型與 API。
+// 商品卡片與分類標籤資料來自公開測試 API（DummyJSON），僅供前端展示用；大小兩個輪播的內容
+// 都由後端資料庫提供、在 staff-scanner 後台維護（見 plan-hero-banner-admin.md）。
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { DrawerActions } from '@react-navigation/native';
@@ -25,6 +25,7 @@ import {
 } from '../../../services/products';
 import { fetchMarqueeTexts } from '../../../services/marquee';
 import { fetchPromoBanners } from '../../../services/promotions';
+import { fetchHeroBanners, HeroBanner } from '../../../services/heroBanners';
 import { useFavoritesStore } from '../../../store/useFavoritesStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
 
@@ -40,18 +41,13 @@ const GRID_CARD_WIDTH = (CAROUSEL_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_
 const RECOMMEND_CARD_WIDTH = SCREEN_WIDTH * 0.62;
 const RECOMMEND_GAP = 14;
 
-interface BannerSlide {
-  id: string;
-  title: string;
-  subtitle: string;
-  color: string;
-  imageUrl?: string;
-}
+type BannerSlide = HeroBanner;
 
-// 輪播文案是假資料，背景圖改抓 DummyJSON 商品的真實照片；color 是圖片載入前/失敗時的底色。
-// 這組顏色是輪播「內容」本身的設計配色（跟行銷素材綁在一起），刻意不隨深色模式切換，
+// 大輪播內容改由後端提供（services/heroBanners.ts）。這組寫死的文案 + DummyJSON 圖片改當備援：
+// 後端清單為空（全部下架）或請求失敗時才顯示，避免首頁最上方的大版面整塊消失（比照跑馬燈）。
+// color 是圖片載入前/失敗時的底色，是輪播「內容」本身的設計配色，刻意不隨深色模式切換，
 // 比照大部分 App 促銷輪播圖維持品牌一致外觀的做法。
-const BANNER_COPY: Omit<BannerSlide, 'id' | 'imageUrl'>[] = [
+const BANNER_COPY: Omit<BannerSlide, 'id' | 'imageUrl' | 'linkRoute'>[] = [
   { title: '春季優惠開跑', subtitle: '即日起至月底，全館 9 折', color: '#EDE7DD' },
   { title: '新品上架', subtitle: '本週精選新品搶先看', color: '#DCE3D5' },
   { title: '會員專屬活動', subtitle: '加入會員享更多回饋', color: '#E3D9CE' },
@@ -355,6 +351,7 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const router = useRouter();
 
   return (
     <View>
@@ -368,25 +365,37 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
       <QuickActionsGrid />
 
       <View style={styles.carouselWrapper}>
-        <Carousel
-          style={{ width: CAROUSEL_WIDTH, height: 160 }}
-          data={banners}
-          loop
-          autoplay
-          autoplayInterval={3000}
-          keyExtractor={(item) => item.id}
-          onSnapToItem={setActiveIndex}
-          renderItem={({ item }) => (
-            <View style={[styles.bannerSlide, { backgroundColor: item.color }]}>
-              {item.imageUrl && (
-                <Image source={{ uri: item.imageUrl }} style={styles.bannerImage} contentFit="cover" />
-              )}
-              <View style={styles.bannerScrim} />
-              <Text style={styles.bannerTitle}>{item.title}</Text>
-              <Text style={styles.bannerSubtitle}>{item.subtitle}</Text>
-            </View>
-          )}
-        />
+        {banners.length === 0 ? (
+          // 後端資料還在載入：先佔住同樣高度，避免資料回來時下方版面整個往下跳
+          <View style={styles.bannerPlaceholder} />
+        ) : (
+          <Carousel
+            style={{ width: CAROUSEL_WIDTH, height: 160 }}
+            data={banners}
+            loop
+            autoplay
+            autoplayInterval={3000}
+            keyExtractor={(item) => item.id}
+            onSnapToItem={setActiveIndex}
+            renderItem={({ item }) => {
+              const linkRoute = item.linkRoute;
+              return (
+                <Pressable
+                  style={[styles.bannerSlide, { backgroundColor: item.color }]}
+                  disabled={!linkRoute}
+                  onPress={linkRoute ? () => router.push(linkRoute) : undefined}
+                >
+                  {item.imageUrl && (
+                    <Image source={{ uri: item.imageUrl }} style={styles.bannerImage} contentFit="cover" />
+                  )}
+                  <View style={styles.bannerScrim} />
+                  <Text style={styles.bannerTitle}>{item.title}</Text>
+                  <Text style={styles.bannerSubtitle}>{item.subtitle}</Text>
+                </Pressable>
+              );
+            }}
+          />
+        )}
         <View style={styles.dotsRow}>
           {banners.map((banner, index) => (
             <View key={banner.id} style={[styles.dot, index === activeIndex && styles.dotActive]} />
@@ -435,20 +444,30 @@ export default function HomeScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
 
+  const heroQuery = useQuery({
+    queryKey: ['hero-banners'],
+    queryFn: fetchHeroBanners,
+  });
+  // 後端回空陣列（全部下架）或請求失敗時才用本機備援；載入中維持空陣列（畫面先顯示佔位區塊）
+  const showFallbackBanners = heroQuery.isError || (heroQuery.isSuccess && heroQuery.data.length === 0);
   const { data: bannerImages = [] } = useQuery({
     queryKey: ['banner-images'],
     queryFn: fetchBannerImages,
+    enabled: showFallbackBanners,
   });
-  const banners: BannerSlide[] = BANNER_COPY.map((copy, index) => ({
-    id: String(index + 1),
-    ...copy,
-    imageUrl: bannerImages[index],
-  }));
+  const banners: BannerSlide[] = showFallbackBanners
+    ? BANNER_COPY.map((copy, index) => ({
+        id: `fallback-${index + 1}`,
+        ...copy,
+        imageUrl: bannerImages[index],
+      }))
+    : heroQuery.data ?? [];
 
-  const { data: promoBanners = [] } = useQuery({
+  const promoQuery = useQuery({
     queryKey: ['promo-banners'],
     queryFn: fetchPromoBanners,
   });
+  const promoBanners = promoQuery.data ?? [];
 
   const { data: categories = [], isLoading: isCategoriesLoading } = useQuery({
     queryKey: ['product-categories'],
@@ -479,6 +498,9 @@ export default function HomeScreen() {
   }, [productsPool]);
 
   const onRefreshProducts = async () => {
+    // 大小輪播一起重新抓，店員在後台改完內容，顧客下拉就看得到
+    heroQuery.refetch();
+    promoQuery.refetch();
     const result = await refetch();
     setDisplayedProducts(shuffle(result.data ?? productsPool).slice(0, 12));
   };
@@ -547,6 +569,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   bannerSlide: {
     flex: 1, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
     padding: 20, overflow: 'hidden'
+  },
+  bannerPlaceholder: {
+    width: CAROUSEL_WIDTH, height: 160, borderRadius: 16, backgroundColor: colors.surfaceAlt
   },
   bannerImage: { ...StyleSheet.absoluteFillObject },
   bannerScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.32)' },
