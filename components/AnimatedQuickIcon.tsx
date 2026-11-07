@@ -12,13 +12,13 @@ import Animated, {
 export type QuickIconAnimation = 'shake' | 'twinkle' | 'heartbeat';
 
 // 每一輪的總長度（動畫本身 + 靜止等待）
-const CYCLE_MS = 4000;
+const CYCLE_MS = 3000;
 
 // 各動畫實際在動的時間
 const PLAY_MS: Record<QuickIconAnimation, number> = {
-  shake: 800,
-  twinkle: 900,
-  heartbeat: 900,
+  shake: 700,
+  twinkle: 800,
+  heartbeat: 800,
 };
 
 interface Props {
