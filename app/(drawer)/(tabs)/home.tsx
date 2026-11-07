@@ -16,8 +16,10 @@ import AutoScroll from '@homielab/react-native-auto-scroll';
 import { Carousel } from 'react-native-reanimated-carousel';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AnimationObject } from 'lottie-react-native';
 
 import AnimatedQuickIcon, { QuickIconAnimation } from '../../../components/AnimatedQuickIcon';
+import LottieQuickIcon from '../../../components/LottieQuickIcon';
 import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
 import { useThemeColors } from '../../../hooks/useThemeColors';
@@ -78,7 +80,13 @@ interface QuickAction {
   // animationDelayMs 讓三個動畫錯開，不會同時動
   animation?: QuickIconAnimation;
   animationDelayMs?: number;
+  // 有設定的入口改用 Lottie 動畫圖示（components/LottieQuickIcon.tsx），優先於 animation
+  lottieSource?: AnimationObject;
 }
+
+// 會員條碼的 Lottie 動畫圖示是手寫的向量動畫（條碼 + 掃描光線），見 components/LottieQuickIcon.tsx
+const MEMBER_CODE_LOTTIE: AnimationObject = require('../../../assets/lottie/member-code-scan.json');
+const SCANLINE_RED = '#E53935';
 
 // 3x3 功能捷徑：全部對應 App 內既有畫面，不是假連結。原本的「隱私權政策」改放「會員條碼」
 // （門市收銀入口，見 plan-member-code-checkout.md），隱私權政策仍可從 Drawer 選單進入，不會完全不能用
@@ -91,7 +99,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: 'settings', label: '帳號設定', icon: 'settings-outline', route: '/settings' },
   { id: 'faq', label: '常見問題', icon: 'help-circle-outline', route: '/faq' },
   { id: 'about', label: '關於此App', icon: 'information-circle-outline', route: '/about' },
-  { id: 'member-code', label: '會員條碼', icon: 'barcode-outline', route: '/member-code' },
+  { id: 'member-code', label: '會員條碼', icon: 'barcode-outline', route: '/member-code', lottieSource: MEMBER_CODE_LOTTIE, animationDelayMs: 1950 },
   { id: 'more', label: '全部服務', icon: 'grid-outline', isDrawerToggle: true },
 ];
 
@@ -219,7 +227,19 @@ function QuickActionsGrid() {
       {QUICK_ACTIONS.map((action) => (
         <Pressable key={action.id} style={styles.quickAction} onPress={() => handlePress(action)}>
           <View style={styles.quickIconCircle}>
-            {action.animation ? (
+            {action.lottieSource ? (
+              <LottieQuickIcon
+                source={action.lottieSource}
+                size={30}
+                continuous
+                delayMs={action.animationDelayMs}
+                colorFilters={[
+                  { keypath: 'bars', color: colors.textMuted },
+                  // 掃描光線用固定的雷射紅（使用者指定），模擬條碼掃描器的紅光，刻意不隨深淺色主題切換
+                  { keypath: 'scanline', color: SCANLINE_RED },
+                ]}
+              />
+            ) : action.animation ? (
               <AnimatedQuickIcon
                 name={action.icon}
                 size={22}
