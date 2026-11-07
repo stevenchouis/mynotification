@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet, TextInput, View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // 匯入剛剛定義好的 Schema 與 Type
 import BirthdayPicker, { formatDateLocal } from '../components/BirthdayPicker';
@@ -23,6 +24,7 @@ export default function RegisterScreen() {
   const navigation = useNavigation();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -75,7 +77,12 @@ export default function RegisterScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollInner} keyboardShouldPersistTaps="handled">
+      {/* app.json 開了 edgeToEdgeEnabled，內容會畫到 Android 底部導覽列後面；這頁有 header 所以上緣
+          沒問題，但最下方的「返回登入」會被導覽列蓋住，底部要多留導覽列的高度 */}
+      <ScrollView
+        contentContainerStyle={[styles.scrollInner, { paddingBottom: 24 + insets.bottom }]}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>建立新帳號</Text>
         
         {/* Email 欄位 */}
