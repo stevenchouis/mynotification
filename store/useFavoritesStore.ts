@@ -9,6 +9,8 @@ interface FavoritesState {
   favoriteIds: number[];
   toggleFavorite: (id: number) => void;
   isFavorite: (id: number) => boolean;
+  // 刪除帳號後清掉本機收藏（見 plan-delete-account.md）
+  clear: () => void;
 }
 
 // zustand persist middleware 需要 { getItem, setItem, removeItem } 介面，包一層 SecureStore
@@ -33,6 +35,7 @@ export const useFavoritesStore = create<FavoritesState>()(
             : [...state.favoriteIds, id],
         })),
       isFavorite: (id) => get().favoriteIds.includes(id),
+      clear: () => set({ favoriteIds: [] }),
     }),
     {
       name: 'favorite-product-ids',

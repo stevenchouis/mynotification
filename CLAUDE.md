@@ -172,6 +172,10 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 - **前景** — `(tabs)/_layout.tsx` 的前景推播監聽器遇到 `dine_in_order_ready` 不跳 Toast，改成 invalidate `['my-dine-in-orders']`、`expo-haptics` + `Vibration` 震動、寫入 `store/usePickupCallStore.ts` 打開 `components/PickupCallModal.tsx` 全螢幕彈窗（掛在 `(tabs)/_layout.tsx`，RN `Modal` 會蓋住登入後的所有畫面）；`app/index.tsx` 的 `setNotificationHandler` 對這個 type 關掉前景橫幅，避免跟彈窗重複。
 - **背景／點擊** — `app/_layout.tsx` 的 `navigateFromNotificationData` 處理 `screen === "DineInOrder"`：invalidate 後先 push `/coupons` 再 push `/dine-in/order/{id}`。
 
+### 刪除帳號（Delete Account）
+
+2026-11-07 定案，完整規劃見 `plan-delete-account.md`。Google Play／App Store 規定有註冊功能的 App 必須能在 App 內自行刪除帳號。入口是 `settings.tsx`「帳號管理」最下方的「刪除帳號」文字連結（刻意不搶眼），進到 `app/delete-account.tsx`（掛在 `app/_layout.tsx` 的 `userToken` 分支）：列出會刪除的內容與目前點數／可用優惠券數量，輸入「刪除帳號」四個字才能按（四種登入方式都適用，不要求密碼）。呼叫 `services/users.ts` 的 `deleteMyAccount()`（`DELETE /users/me`），成功後清本機購物車與收藏（`useCartStore.clear()`／`useFavoritesStore.clear()`）再 `logout()`；`role=staff` 帳號後端回 403，前端提示洽管理者。後端做法是**立即匿名化、保留交易紀錄**（個資與點數／優惠券／好友／通知／推播 token 刪除，訂單與堂食紀錄保留但不再對應到人），原 Email 可以重新註冊。back-end `5db6d1a` 的實作細節：刪除標記沿用 `User.is_active`（`get_current_user` 補上檢查，舊 JWT 回 401）；email 改成 `deleted-{id}@deleted.invalid`；`Order`／`DineInOrder`／`StoreCheckout` 的 `user_id` 維持指向匿名化後的 User（不改 null）；點數明細整批刪除；**已使用**的優惠券視為交易紀錄保留，未使用的刪除。Supabase `avatars` 的頭像檔前端刪不掉，先接受殘留。
+
 ### 狀態管理模式
 
 三個職責嚴格分離的 store：
@@ -205,6 +209,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | POST | `/api/v1/users/register` | 註冊。後端會在同一個 DB transaction 內順便建立一張新會員歡迎禮券（$100、30 天效期），回應格式不受影響，前端不需要處理 |
 | GET | `/api/v1/users/me` | 取得目前使用者資料 |
 | PUT | `/api/v1/users/me` | 更新個人資料（例如 avatar_url） |
+| DELETE | `/api/v1/users/me` | 刪除（匿名化）目前帳號，成功回 204，立即生效；`role=staff` 回 403；之後舊 JWT 一律 401。見「刪除帳號」章節 |
 | POST | `/api/v1/users/push-tokens` | 註冊 Expo Push Token |
 | GET | `/api/v1/notifications/inbox` | 取得通知列表 |
 | PUT | `/api/v1/notifications/:id/read` | 將單筆標記為已讀 |

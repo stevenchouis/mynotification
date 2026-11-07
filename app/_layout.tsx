@@ -289,6 +289,16 @@ export default function RootLayout() {
                   headerBackTitle: '返回'
                 }}
               />
+              {/* 刪除帳號畫面（見 plan-delete-account.md）：從 settings.tsx「帳號管理」最下方進來 */}
+              <Stack.Screen
+                name="delete-account"
+                options={{
+                  headerShown: true,
+                  title: '刪除帳號',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
               {/* 紅利點數畫面：從 settings.tsx 的「帳號管理」入口或首頁功能 Grid 導航進來 */}
               <Stack.Screen
                 name="points"

@@ -408,6 +408,15 @@ const uploadToSupabase = async (uri: string) => {
           <Ionicons name="log-out-outline" size={20} color={colors.white} style={{ marginRight: 8 }} />
           <Text style={styles.logoutText}>登出系統</Text>
         </Pressable>
+        {/* 刪除帳號（Google Play／App Store 上架規定，見 plan-delete-account.md）：刻意做成不搶眼的
+            文字連結放在最下面，真正的確認流程在 app/delete-account.tsx */}
+        <Pressable
+          onPress={() => router.push('/delete-account')}
+          style={styles.deleteAccountLink}
+          hitSlop={8}
+        >
+          <Text style={styles.deleteAccountLinkText}>刪除帳號</Text>
+        </Pressable>
       </View>
 
       <Text style={styles.versionText}>版本號：1.0.3 (Android Blob Fix)</Text>
@@ -623,6 +632,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   logoutText: { color: colors.white, fontSize: 16, fontWeight: '600' },
+  deleteAccountLink: { alignSelf: 'center', paddingVertical: 12, marginTop: 8 },
+  deleteAccountLinkText: { color: colors.danger, fontSize: 14, textDecorationLine: 'underline' },
   versionText: { textAlign: 'center', color: colors.textSubtle, marginTop: 50, fontSize: 12 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20 },
