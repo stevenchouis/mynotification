@@ -15,9 +15,10 @@ import { Image } from 'expo-image';
 
 import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
+import { isMemberTier, MEMBER_TIERS } from '../../../constants/loyalty';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { api } from '../../../services/api';
-import { fetchLoyaltyBalance } from '../../../services/loyalty';
+import { fetchLoyaltyBalance, fetchLoyaltyMe, LOYALTY_ME_QUERY_KEY } from '../../../services/loyalty';
 import { NicknameFormValues, nicknameSchema } from '../../../schemas/userSchema';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
@@ -74,6 +75,12 @@ export default function SettingsScreen() {
   const { data: loyaltyBalance } = useQuery({
     queryKey: ['loyalty-balance'],
     queryFn: fetchLoyaltyBalance,
+    enabled: !!userToken,
+  });
+  // 會員等級；key 開頭是 'loyalty-balance'，下面 useFocusEffect 的 invalidate 會一起刷新
+  const { data: loyaltyMe } = useQuery({
+    queryKey: LOYALTY_ME_QUERY_KEY,
+    queryFn: fetchLoyaltyMe,
     enabled: !!userToken,
   });
 
@@ -385,7 +392,11 @@ const uploadToSupabase = async (uri: string) => {
         >
           <Text style={styles.menuItemText}>紅利點數</Text>
           <View style={styles.badgeContainer}>
-            <Text style={styles.badgeText}>{loyaltyBalance ?? 0} 點</Text>
+            <Text style={styles.badgeText}>
+              {/* 會員等級（見 plan-member-tier.md），舊後端沒回 tier 時只顯示點數 */}
+              {isMemberTier(loyaltyMe?.tier) ? `${MEMBER_TIERS[loyaltyMe.tier].label}・` : ''}
+              {loyaltyBalance ?? 0} 點
+            </Text>
           </View>
         </Pressable>
         <Pressable

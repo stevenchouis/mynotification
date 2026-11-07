@@ -1,15 +1,18 @@
 // app/member-code.tsx
 // 會員條碼/QR Code 畫面：按「產生會員碼」出示限時碼給店員掃描辨識身份，於門市收銀結帳。
 // 限時碼產生/倒數/重新產生邏輯完全比照 app/coupon/[id].tsx 的核銷碼設計（10 分鐘效期、單次使用）。
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import Barcode from 'react-native-barcode-svg';
 import QRCode from 'react-native-qrcode-svg';
 
 import Text from '../components/Text';
+import TierBadge from '../components/TierBadge';
 import { ThemeColors } from '../constants/Colors';
+import { isMemberTier } from '../constants/loyalty';
 import { useThemeColors } from '../hooks/useThemeColors';
-import { generateMemberCode } from '../services/loyalty';
+import { fetchLoyaltyMe, generateMemberCode, LOYALTY_ME_QUERY_KEY } from '../services/loyalty';
 import { MemberCodeResponse } from '../types/loyalty';
 
 type CodeFormat = 'barcode' | 'qrcode';
@@ -22,6 +25,8 @@ export default function MemberCodeScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [format, setFormat] = useState<CodeFormat>('barcode');
+  // 會員等級徽章（見 plan-member-tier.md），出示給店員時一眼看出是不是銀卡/金卡
+  const { data: loyaltyMe } = useQuery({ queryKey: LOYALTY_ME_QUERY_KEY, queryFn: fetchLoyaltyMe });
 
   // 每秒更新倒數計時，會員碼過期後提示使用者重新產生
   useEffect(() => {
@@ -54,6 +59,11 @@ export default function MemberCodeScreen() {
 
   return (
     <View style={styles.container}>
+      {isMemberTier(loyaltyMe?.tier) && (
+        <View style={styles.tierBadgeRow}>
+          <TierBadge tier={loyaltyMe.tier} />
+        </View>
+      )}
       <Text style={styles.title}>出示此畫面給店員掃描</Text>
       <Text style={styles.subtitle}>店員掃描後即可辨識您的會員身份並完成結帳</Text>
 
@@ -117,6 +127,7 @@ export default function MemberCodeScreen() {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: 24, justifyContent: 'center', alignItems: 'center' },
+  tierBadgeRow: { alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 18, fontWeight: '600', color: colors.text, textAlign: 'center' },
   subtitle: { fontSize: 13, color: colors.textSubtle, marginTop: 6, marginBottom: 32, textAlign: 'center' },
   codeSection: { width: '100%', alignItems: 'center' },

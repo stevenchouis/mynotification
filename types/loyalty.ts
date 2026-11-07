@@ -35,3 +35,15 @@ export interface MemberCodeResponse {
   code: string;
   expires_at: string;
 }
+
+// GET /api/v1/loyalty/me 的完整回應。會員等級欄位是 2026-11-07 新增（見 plan-member-tier.md），
+// 舊後端只回 balance，所以等級欄位都是可選的，畫面上沒有 tier 就不顯示等級區塊
+export interface LoyaltyMe {
+  balance: number;
+  tier?: string;
+  year_spend?: number;
+  next_tier?: string | null;
+  amount_to_next_tier?: number | null;
+  tier_expires_at?: string | null;
+  earn_multiplier?: number;
+}

@@ -10,10 +10,14 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
+import MemberTierCard from '../components/MemberTierCard';
 import Text from '../components/Text';
 import { ThemeColors } from '../constants/Colors';
+import { isMemberTier } from '../constants/loyalty';
 import { useThemeColors } from '../hooks/useThemeColors';
-import { fetchLoyaltyBalance, fetchLoyaltyTransactions } from '../services/loyalty';
+import {
+  fetchLoyaltyBalance, fetchLoyaltyMe, fetchLoyaltyTransactions, LOYALTY_ME_QUERY_KEY,
+} from '../services/loyalty';
 import { fetchMyDineInOrders, fetchRestaurants } from '../services/dineIn';
 import { fetchMyOrders } from '../services/shop';
 import { fetchMyStoreCheckouts } from '../services/storeCheckouts';
@@ -81,6 +85,9 @@ export default function PointsScreen() {
     queryFn: fetchLoyaltyBalance,
   });
 
+  // 等級資料；key 開頭是 'loyalty-balance'，下面 invalidate ['loyalty-balance'] 時會一起刷新
+  const { data: loyaltyMe } = useQuery({ queryKey: LOYALTY_ME_QUERY_KEY, queryFn: fetchLoyaltyMe });
+
   const { data: transactions, isLoading: isTxLoading, isRefetching, refetch } = useQuery({
     queryKey: ['loyalty-transactions'],
     queryFn: fetchLoyaltyTransactions,
@@ -131,6 +138,9 @@ export default function PointsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* 會員等級（見 plan-member-tier.md），舊後端沒回 tier 時不顯示 */}
+      {loyaltyMe && isMemberTier(loyaltyMe.tier) && <MemberTierCard me={loyaltyMe} tier={loyaltyMe.tier} />}
+
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>目前餘額</Text>
         {isBalanceLoading ? (
@@ -179,7 +189,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   balanceCard: {
     backgroundColor: colors.surface, margin: 16, borderRadius: 16,
-    padding: 24, alignItems: 'center',
+    padding: 20, alignItems: 'center',
   },
   balanceLabel: { fontSize: 14, color: colors.textMuted },
   balanceValue: { fontSize: 36, fontWeight: '900', color: colors.text, marginTop: 8 },

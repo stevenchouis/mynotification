@@ -144,6 +144,11 @@ export default function RootLayout() {
       // 優惠券列表有 30 天內用過/過期即隱藏的邏輯，也有全域 staleTime，剛發的新券
       // 可能還沒被抓進快取，直接導頁進去前先 invalidate 一次確保是最新資料
       queryClient.invalidateQueries({ queryKey: ['myCoupons'] });
+      // 會員升等推播（type: "tier_upgraded"，見 plan-member-tier.md）也走這個格式，coupon_id 是升等禮券；
+      // 等級與點數倍率剛變，順便刷新（['loyalty-balance'] 前綴也涵蓋 LOYALTY_ME_QUERY_KEY）
+      if (data.type === 'tier_upgraded') {
+        queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+      }
       // 同樣先補 push 一次「我的」分頁（預設就是優惠券區塊），返回鍵才會回到清單而不是回首頁
       router.push('/coupons');
       router.push(`/coupon/${data.coupon_id}`);
