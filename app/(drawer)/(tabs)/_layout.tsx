@@ -1,20 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query'; // 1. 匯入 Query 工具
 import axios from 'axios';
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, Vibration } from 'react-native';
 import Toast from 'react-native-toast-message';
 
+import PickupCallModal from '../../../components/PickupCallModal';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useCartStore } from '../../../store/useCartStore';
 import { useFavoritesStore } from '../../../store/useFavoritesStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
+import { usePickupCallStore } from '../../../store/usePickupCallStore';
 import { Notification } from '../../../types/notification';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+// 取餐叫號震動：震 400ms、停 200ms、再震 400ms（Android 第一個數字是開始前的等待時間）
+const PICKUP_VIBRATION_PATTERN = [0, 400, 200, 400];
 
 export default function TabLayout() {
   const queryClient = useQueryClient();
@@ -26,6 +32,7 @@ export default function TabLayout() {
   const setUnreadCount = useNotificationStore((state) => state.setUnreadCount);
   const favoriteCount = useFavoritesStore((state) => state.favoriteIds.length);
   const cartCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
+  const showPickupCall = usePickupCallStore((state) => state.show);
 
   // 2. 使用 useQuery 建立全域通知監聽
   const { data: notifications = [] } = useQuery<Notification[]>({
@@ -83,6 +90,20 @@ export default function TabLayout() {
         queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
       }
 
+      // 取餐叫號（見 plan-dine-in-pickup-call.md）：改用全螢幕彈窗＋震動，不跳一般 Toast，
+      // 顧客拿著手機時不會錯過；訂單列表/詳情的「已叫號」標示要靠重新抓 ['my-dine-in-orders']
+      const data = notification.request.content.data;
+      if (data?.type === 'dine_in_order_ready' && data.dine_in_order_id) {
+        queryClient.invalidateQueries({ queryKey: ['my-dine-in-orders'] });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        Vibration.vibrate(PICKUP_VIBRATION_PATTERN);
+        showPickupCall({
+          orderId: Number(data.dine_in_order_id),
+          pickupNumber: data.pickup_number != null ? Number(data.pickup_number) : null,
+        });
+        return;
+      }
+
       Toast.show({
         type: 'info',
         text1: notification.request.content.title || '新通知',
@@ -92,7 +113,7 @@ export default function TabLayout() {
     });
 
     return () => subscription.remove();
-  }, [queryClient]);
+  }, [queryClient, showPickupCall]);
 
   // 6. App 從背景回到前景時重抓通知：App 在背景時收到的推播不會經過上面的前景監聽器，
   // 回到前景若通知快取還沒過期，列表與 Tab Bar 未讀徽章就會一直是舊的
@@ -106,7 +127,10 @@ export default function TabLayout() {
   }, [queryClient]);
 
   return (
-    // headerShown: false — header 交給外層的 (drawer)/_layout.tsx 統一顯示（含選單按鈕）
+    <>
+    {/* 取餐叫號全螢幕彈窗：Modal 會蓋在所有畫面上方，掛在這裡就涵蓋登入後的所有畫面 */}
+    <PickupCallModal />
+    {/* headerShown: false — header 交給外層的 (drawer)/_layout.tsx 統一顯示（含選單按鈕） */}
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.tint,
@@ -172,6 +196,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </>
   );
 }
 

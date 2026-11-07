@@ -15,7 +15,9 @@ import { fetchMyCoupons } from '../../../services/coupons';
 import { fetchMyDineInOrders, fetchRestaurants } from '../../../services/dineIn';
 import { fetchMyOrders } from '../../../services/shop';
 import { Coupon } from '../../../types';
-import { DINE_IN_ORDER_STATUS_LABEL, DineInOrder, DineInOrderStatus, Restaurant } from '../../../types/dineIn';
+import {
+  DINE_IN_ORDER_STATUS_LABEL, DineInOrder, DineInOrderStatus, formatPickupNumber, Restaurant,
+} from '../../../types/dineIn';
 import { Order, ORDER_STATUS_LABEL, OrderStatus, ShopProduct } from '../../../types/shop';
 import { CouponStatus, getCouponStatus, isStale } from '../../../utils/coupon';
 
@@ -383,14 +385,20 @@ export default function MyScreen() {
               onPress={() => router.push({ pathname: '/dine-in/order/[id]', params: { id: String(item.id) } })}
             >
               <View style={styles.cardMain}>
-                <Text style={styles.title}>桌號 {item.table_number}（訂單 #{item.id}）</Text>
+                <Text style={styles.title}>
+                  {/* 有取餐號碼（見 plan-dine-in-pickup-call.md）就放最前面，比訂單編號好認 */}
+                  {item.pickup_number != null ? `取餐 ${formatPickupNumber(item.pickup_number)}｜` : ''}
+                  桌號 {item.table_number}（訂單 #{item.id}）
+                </Text>
                 <Text style={styles.amount}>${item.total_amount}</Text>
               </View>
               <View style={styles.cardFooter}>
                 <Text style={styles.expiry}>
                   {new Date(item.created_at).toLocaleString('zh-TW')}
                 </Text>
-                <Text style={styles.status}>{DINE_IN_ORDER_STATUS_LABEL[item.status]}</Text>
+                <Text style={styles.status}>
+                  {item.status === 'pending' && item.called_at ? '已叫號，請取餐' : DINE_IN_ORDER_STATUS_LABEL[item.status]}
+                </Text>
               </View>
             </Pressable>
           )}

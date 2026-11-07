@@ -41,11 +41,12 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 // 預設情況下，iOS 和 Android 為了避免干擾使用者，當 App 開啟時收到通知是不會彈出橫幅或發出聲音的。這段程式碼就是用來「打破」這個預設行為。
 // 這是一個全域的監聽設定。你只需要在 App 的進入點（例如 _layout.tsx 或 app.json 相關配置）設定一次，它就會影響整個 App 對於「前景通知」的處理邏輯。
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
+  handleNotification: async (notification) => ({
     shouldPlaySound: true,
     shouldSetBadge: false,
     // shouldShowAlert 已棄用，改用 shouldShowBanner（前景橫幅）與 shouldShowList（通知中心列表）取代
-    shouldShowBanner: true,
+    // 取餐叫號在前景會跳全螢幕彈窗（components/PickupCallModal.tsx），不再重複顯示系統橫幅
+    shouldShowBanner: notification.request.content.data?.type !== 'dine_in_order_ready',
     shouldShowList: true,
   }),
 });

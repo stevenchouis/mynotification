@@ -163,6 +163,15 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 - **後端狀態（`back-end` 2026-09-10 回報）**：Phase 1（`Restaurant` 實體、`Table`/`MenuItem`/`User`/`DineInOrder` 皆加 `restaurant_id`，均 nullable 向下相容）已完成部署。Phase 2（前端開始送 `restaurant_id`/`table_id`，本次改版內容）進行中。Phase 3（後端把欄位從「可選」收緊成「強制」）尚未開始，會等兩邊前端都上線穩定後再排。
 - **未完成/待確認事項**：店員帳號怎麼被指派到門市目前是純手動 DB 操作，跟 `role` 升級同一套慣例，沒有 App 內管理畫面；有沒有需要一個能跨門市管理的 `manager` 角色，目前判斷沒有實際使用情境、先不加。（原本列在這裡的「`staff-scanner` 桌位管理 UI 要能依餐廳新增/篩選桌位」已跟 `staff` session 確認**刻意不做**：一個店員帳號只屬於一間門市，`/tables`／`/menu-items/admin`／`/dine-in-orders` 後端都自動 scope 到 caller 的門市，`staff-scanner` 首頁只顯示唯讀的「目前門市」標籤，不需要餐廳選單或篩選 UI。）
 
+### 取餐叫號（Dine-in Pickup Call）
+
+2026-11-07 定案，完整規劃見 `plan-dine-in-pickup-call.md`。叫號是**獨立動作，不改堂食狀態機**（`pending → served → completed`／`cancelled`）也不動點數邏輯：
+
+- **取餐號碼** — `DineInOrder.pickup_number` 由後端在下單時產生，同一門市、同一營業日（台灣時間 00:00 歸零）從 1 開始；顯示一律用 `types/dineIn.ts` 的 `formatPickupNumber()` 補零成 3 位數（`017`）。舊資料／舊後端沒有這個欄位，所有顯示處都要先判斷 `!= null`。出現在：送出結果頁（`app/dine-in/confirm.tsx`，由 `cart.tsx` 帶 `pickupNumber` 參數）、訂單詳情（`app/dine-in/order/[id].tsx`）、「我的點餐」卡片（`coupons.tsx`）。
+- **叫號** — 店員在 `staff-scanner` 接單卡片按「叫號」呼叫 `POST /dine-in-orders/{id}/call`（只限 `pending`，可重複），後端更新 `called_at`／`call_count` 並推播 `data: { type: "dine_in_order_ready", screen: "DineInOrder", dine_in_order_id, pickup_number }`。顧客端「`status === 'pending'` 且 `called_at` 有值」就顯示「已叫號，請取餐」。
+- **前景** — `(tabs)/_layout.tsx` 的前景推播監聽器遇到 `dine_in_order_ready` 不跳 Toast，改成 invalidate `['my-dine-in-orders']`、`expo-haptics` + `Vibration` 震動、寫入 `store/usePickupCallStore.ts` 打開 `components/PickupCallModal.tsx` 全螢幕彈窗（掛在 `(tabs)/_layout.tsx`，RN `Modal` 會蓋住登入後的所有畫面）；`app/index.tsx` 的 `setNotificationHandler` 對這個 type 關掉前景橫幅，避免跟彈窗重複。
+- **背景／點擊** — `app/_layout.tsx` 的 `navigateFromNotificationData` 處理 `screen === "DineInOrder"`：invalidate 後先 push `/coupons` 再 push `/dine-in/order/{id}`。
+
 ### 狀態管理模式
 
 三個職責嚴格分離的 store：
@@ -215,6 +224,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | GET/POST/PATCH/DELETE | `/api/v1/promotions/admin`、`/api/v1/promotions`、`/api/v1/promotions/{id}` | 輪播管理（2026-10-16 上線，back-end `b027c8f`），`verify_admin_or_staff` 雙軌授權，只給 `staff-scanner` 用；圖片由 `staff-scanner` 直接上傳 Supabase Storage 的 `promotions` bucket（public、5 MB、`image/*`、只開 anon INSERT，檔名需唯一），後端只存 `image_url` 字串 |
 | GET | `/api/v1/hero-banners` | 公開端點，首頁大輪播（`fetchHeroBanners()`），回 `[{ id, title, subtitle, color, image_url, link_route }]`，只回 `is_active` 且在生效區間內、依 `sort_order` 排序；`image_url`／`link_route` 可為 `null` |
 | GET/POST/PATCH/DELETE | `/api/v1/hero-banners/admin`、`/api/v1/hero-banners`、`/api/v1/hero-banners/{id}` | 大輪播管理（2026-11-06 上線，back-end `20a8ee9`），`verify_admin_or_staff` 雙軌授權，只給 `staff-scanner` 用；`link_route` 不在 8 個白名單內回 422；圖片沿用 `promotions` bucket、檔名前綴 `hero/` |
+| POST | `/api/v1/dine-in-orders/{id}/call` | 取餐叫號（2026-11-07），店員限定、只能叫自己門市的 `pending` 訂單（其他狀態 409），可重複；更新 `called_at`／`call_count` 並推播 `dine_in_order_ready` 給顧客，只給 `staff-scanner` 用。`DineInOrder` 同時新增 `pickup_number`（同門市每天從 1 開始）／`called_at`／`call_count`，見「取餐叫號」章節 |
 | POST | `/api/v1/dine-in-orders` | body 支援新的 `table_id`（會反查門市）或舊的 `table_number`（自由文字），至少要帶一個；mynotification 已全面改用 `table_id` |
 
 ### 表單驗證

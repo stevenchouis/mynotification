@@ -103,7 +103,12 @@ export default function DineInCartScreen() {
       queryClient.invalidateQueries({ queryKey: ['myCoupons'] });
       router.replace({
         pathname: '/dine-in/confirm',
-        params: { orderId: String(order.id), tableNumber: tableCode },
+        params: {
+          orderId: String(order.id),
+          tableNumber: tableCode,
+          // 取餐號碼（見 plan-dine-in-pickup-call.md），舊後端沒回這個欄位時不帶，結果頁維持原樣
+          ...(order.pickup_number != null ? { pickupNumber: String(order.pickup_number) } : {}),
+        },
       });
     } catch (error: any) {
       const status = error.response?.status;

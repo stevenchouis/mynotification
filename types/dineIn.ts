@@ -71,4 +71,15 @@ export interface DineInOrder {
   coupon_discount: number;
   // 收款前是 null，店員在 served→completed 轉換時強制帶入（見 plan-dine-in-order-payment.md）
   payment_method: DineInPaymentMethod | null;
+  // 取餐叫號（2026-11-07，見 plan-dine-in-pickup-call.md）：pickup_number 是同門市、同營業日
+  // （台灣時間 00:00 歸零）從 1 開始的取餐號，舊資料或舊後端沒有這個欄位時是 null/undefined；
+  // called_at／call_count 是店員在 staff-scanner 按「叫號」的紀錄，叫號不改變 status
+  pickup_number?: number | null;
+  called_at?: string | null;
+  call_count?: number;
+}
+
+// 取餐號碼顯示補零成 3 位數（17 → "017"），超過 999 就照原數字顯示
+export function formatPickupNumber(pickupNumber: number): string {
+  return String(pickupNumber).padStart(3, '0');
 }

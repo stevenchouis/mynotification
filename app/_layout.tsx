@@ -154,6 +154,13 @@ export default function RootLayout() {
       // 同樣先補 push 一次「我的」分頁（訂單清單所在位置）再疊上詳情頁，返回鍵才會回到清單
       router.push('/coupons');
       router.push(`/order/${data.order_id}`);
+    } else if (data.screen === "DineInOrder" && data.dine_in_order_id) {
+      // 取餐叫號（type: "dine_in_order_ready"，見 plan-dine-in-pickup-call.md）：訂單的
+      // called_at 剛被更新，詳情頁要顯示「已叫號」，導頁前先 invalidate 避免吃到舊快取
+      queryClient.invalidateQueries({ queryKey: ['my-dine-in-orders'] });
+      // 同樣先補 push 一次「我的」分頁（點餐清單所在位置）再疊上詳情頁，返回鍵才會回到清單
+      router.push('/coupons');
+      router.push(`/dine-in/order/${data.dine_in_order_id}`);
     } else if (data.screen === "NotificationInbox") {
       router.push('/inbox');
     } else if (data.screen === "Points") {
