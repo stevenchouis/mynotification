@@ -314,6 +314,16 @@ export default function RootLayout() {
                   headerBackTitle: '返回'
                 }}
               />
+              {/* 點數兌換優惠券（見 plan-points-exchange.md）：從紅利點數畫面的餘額卡片進來 */}
+              <Stack.Screen
+                name="points-exchange"
+                options={{
+                  headerShown: true,
+                  title: '兌換優惠券',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
               {/* 會員條碼畫面：從首頁功能 Grid 或 settings.tsx 的「帳號管理」入口導航進來，
                   出示給店員用 staff-scanner 掃描辨識身份、於門市收銀結帳（見 plan-member-code-checkout.md） */}
               <Stack.Screen

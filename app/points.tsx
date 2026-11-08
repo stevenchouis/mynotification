@@ -7,8 +7,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import MemberTierCard from '../components/MemberTierCard';
 import Text from '../components/Text';
@@ -35,7 +36,12 @@ const TX_DISPLAY: Record<
   expire: { icon: 'time-outline', sign: '-', colorKey: 'textSubtle', defaultReason: '點數已過期' },
   reverse_earn: { icon: 'close-circle-outline', sign: '-', colorKey: 'textSubtle', defaultReason: '訂單取消收回點數' },
   reverse_redeem: { icon: 'arrow-undo-outline', sign: '+', colorKey: 'accent', defaultReason: '訂單取消退還折抵' },
+  exchange: { icon: 'ticket-outline', sign: '-', colorKey: 'tint', defaultReason: '兌換優惠券' },
 };
+
+// 後端之後若再新增 type，舊版 App 查不到 TX_DISPLAY 會閃退，所以不認得的 type 用這個通用樣式。
+// 正負號看 amount 本身（後端 amount 一律是正數時就顯示成「點數異動」不帶符號）
+const UNKNOWN_TX_DISPLAY = { icon: 'swap-horizontal-outline', sign: '', colorKey: 'textMuted', defaultReason: '點數異動' } as const;
 
 function TransactionRow({
   tx, orderAmount, restaurantName, colors, styles,
@@ -43,7 +49,7 @@ function TransactionRow({
   tx: LoyaltyTransaction; orderAmount: number | null; restaurantName: string | null;
   colors: ThemeColors; styles: ReturnType<typeof createStyles>;
 }) {
-  const display = TX_DISPLAY[tx.type];
+  const display = TX_DISPLAY[tx.type] ?? UNKNOWN_TX_DISPLAY;
   const color = colors[display.colorKey] as string;
   const reason = tx.type === 'expire' ? display.defaultReason : tx.reason || display.defaultReason;
 
@@ -148,6 +154,14 @@ export default function PointsScreen() {
         ) : (
           <Text style={styles.balanceValue}>{balance ?? 0} 點</Text>
         )}
+        {/* 點數兌換優惠券（見 plan-points-exchange.md） */}
+        <Pressable
+          style={({ pressed }) => [styles.exchangeButton, pressed && { opacity: 0.7 }]}
+          onPress={() => router.push('/points-exchange')}
+        >
+          <Ionicons name="ticket-outline" size={16} color={colors.onTint} />
+          <Text style={styles.exchangeButtonText}>兌換優惠券</Text>
+        </Pressable>
       </View>
 
       <Text style={styles.sectionTitle}>收支明細</Text>
@@ -193,6 +207,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   balanceLabel: { fontSize: 14, color: colors.textMuted },
   balanceValue: { fontSize: 36, fontWeight: '900', color: colors.text, marginTop: 8 },
+  exchangeButton: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.tint,
+    borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, marginTop: 14,
+  },
+  exchangeButtonText: { fontSize: 14, fontWeight: '600', color: colors.onTint, marginLeft: 6 },
 
   sectionTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginHorizontal: 16, marginBottom: 4 },
 

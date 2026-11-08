@@ -1,7 +1,8 @@
 // types/loyalty.ts
 // 紅利點數型別，跟 types/shop.ts／types/dineIn.ts 刻意分開，不共用既有 interface。
 // 欄位對齊已跟 back-end session 確認的 LoyaltyTransaction 設計（見 plan-loyalty-points.md）。
-export type LoyaltyTransactionType = 'earn' | 'redeem' | 'expire' | 'reverse_earn' | 'reverse_redeem';
+// exchange：點數兌換優惠券（2026-11-07，見 plan-points-exchange.md），固定負向
+export type LoyaltyTransactionType = 'earn' | 'redeem' | 'expire' | 'reverse_earn' | 'reverse_redeem' | 'exchange';
 
 // 交易類型顯示文字，比照 types/shop.ts 的 ORDER_STATUS_LABEL 寫法
 export const LOYALTY_TX_TYPE_LABEL: Record<LoyaltyTransactionType, string> = {
@@ -10,6 +11,7 @@ export const LOYALTY_TX_TYPE_LABEL: Record<LoyaltyTransactionType, string> = {
   expire: '過期',
   reverse_earn: '收回',
   reverse_redeem: '退還',
+  exchange: '兌換',
 };
 
 export interface LoyaltyTransaction {
@@ -22,6 +24,8 @@ export interface LoyaltyTransaction {
   // 門市收銀交易（見 plan-member-code-checkout.md），back-end 已於 2026-09-16 加上
   // （commit d2a8dc2），跟 related_order_id/related_dine_in_order_id 對稱
   related_store_checkout_id: number | null;
+  // 點數兌換優惠券（見 plan-points-exchange.md），只有 type === 'exchange' 才有值
+  related_coupon_id?: number | null;
   created_at: string;
   expires_at: string | null; // 只有 type === 'earn' 才有值
   // 2026-09-11 多門市功能新增，純記錄/報表用途——餘額仍是統一帳戶層級，不影響能不能折抵
@@ -46,4 +50,20 @@ export interface LoyaltyMe {
   amount_to_next_tier?: number | null;
   tier_expires_at?: string | null;
   earn_multiplier?: number;
+}
+
+// 點數兌換優惠券（2026-11-07，見 plan-points-exchange.md）。兌換目錄寫死在後端，前端只顯示後端回傳的內容
+export interface ExchangeOption {
+  id: string; // 例如 'coupon_100'
+  title: string;
+  points_cost: number;
+  discount_amount: number;
+  valid_days: number;
+}
+
+// GET /api/v1/loyalty/exchange-options 的回應；每月上限以台灣時間自然月計算，三種品項合計
+export interface ExchangeOptionsResponse {
+  options: ExchangeOption[];
+  monthly_limit: number;
+  used_this_month: number;
 }

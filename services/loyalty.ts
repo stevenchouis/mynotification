@@ -1,7 +1,8 @@
 // services/loyalty.ts
 // 紅利點數 API，跟 services/shop.ts／services/dineIn.ts 刻意分開、不共用。
 import { api } from './api';
-import { LoyaltyMe, LoyaltyTransaction, MemberCodeResponse } from '../types/loyalty';
+import { Coupon } from '../types';
+import { ExchangeOptionsResponse, LoyaltyMe, LoyaltyTransaction, MemberCodeResponse } from '../types/loyalty';
 
 export async function fetchLoyaltyBalance(): Promise<number> {
   const res = await api.get('/api/v1/loyalty/me');
@@ -26,5 +27,20 @@ export async function fetchLoyaltyTransactions(): Promise<LoyaltyTransaction[]> 
 // 產生限時會員碼供店員掃描辨識身份，比照 POST /coupons/{id}/redeem-code（見 app/coupon/[id].tsx）
 export async function generateMemberCode(): Promise<MemberCodeResponse> {
   const res = await api.post('/api/v1/loyalty/member-code');
+  return res.data;
+}
+
+// 點數兌換優惠券（見 plan-points-exchange.md）
+export const EXCHANGE_OPTIONS_QUERY_KEY = ['loyalty-exchange-options'] as const;
+
+export async function fetchExchangeOptions(): Promise<ExchangeOptionsResponse> {
+  const res = await api.get('/api/v1/loyalty/exchange-options');
+  return res.data;
+}
+
+// 扣點、寫明細、建券由後端在同一個 transaction 完成；點數不足回 409 insufficient_points，
+// 本月已達上限回 409 exchange_limit_reached（detail 是帶 error_code 的物件）
+export async function exchangePoints(optionId: string): Promise<{ coupon: Coupon; balance: number }> {
+  const res = await api.post('/api/v1/loyalty/exchange', { option_id: optionId });
   return res.data;
 }
