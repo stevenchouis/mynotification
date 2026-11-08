@@ -14,6 +14,8 @@ description: >
 
 `mynotification`（這個 session，通常自稱 `front-end`）是使用者的統一指揮窗口。使用者只跟這個 session 對話確認決策；跟 `back-end`（`fastapi_pj`）、`staff`（`staff-scanner`）的協調（API 契約、進度追蹤、決策傳遞）一律由這個 session 透過 `SendMessage` 代為進行，使用者不需要自己開其他 session 視窗來回問。
 
+發給 `back-end`／`staff` 的**指令**（不是單純詢問進度）要先在這裡一次問完使用者需要同意的事（開工、migration、commit／push／部署），訊息裡寫明「使用者已確認：……」逐項列出，對方才會直接執行、不再回頭問使用者（使用者 2026-11-08 定案，見 CLAUDE.md「由 mynotification 統一指揮」）。
+
 決策權仍在使用者身上——這個 skill 的職責是「蒐集現況、彙整、代為詢問」，不是替使用者做決定。遇到需要使用者拍板的事（例如 commit 範圍、要不要 push、新功能怎麼做），還是要用 `AskUserQuestion` 或直接提問，不要自己假設。
 
 ## 判斷模式

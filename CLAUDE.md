@@ -7,6 +7,7 @@
 - 與使用者的所有溝通（文字回覆、提問、進度回報）一律使用**繁體中文**，不得使用英文。
 - 本專案（mynotification）為**前端**，後端（FastAPI）由另一個獨立的 Claude Code session `back-end` 負責。凡涉及 API 契約、資料庫 schema 的協調，請直接透過跨 session 訊息與 `back-end` session 溝通，不要透過使用者轉達。
 - 與 `back-end` session 之間的訊息也一律使用繁體中文。
+- **由 mynotification 統一指揮（使用者 2026-11-08 定案）**：使用者只在這個 session 討論功能、做決定，`back-end`／`staff` 由這個 session 透過跨 session 訊息下指令。發指令前要先在這裡**一次問完**所有需要使用者同意的事（開工、資料庫 migration、commit／push／部署到 Render），再在訊息裡明確寫出「**使用者已確認：……**」逐項列出已同意的內容；對方的 CLAUDE.md 會把有這行的指令視同使用者授權直接執行。沒列進去的項目（例如沒提到 migration），對方會回頭問，這時由這個 session 問使用者再轉達，不要讓使用者自己去對方視窗回答。
 
 ## 常用指令
 
