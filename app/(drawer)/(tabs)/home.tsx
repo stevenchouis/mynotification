@@ -6,7 +6,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { DrawerActions } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AnimationObject } from 'lottie-react-native';
 
 import AnimatedQuickIcon, { QuickIconAnimation } from '../../../components/AnimatedQuickIcon';
+import CheckInCard from '../../../components/CheckInCard';
 import LottieQuickIcon from '../../../components/LottieQuickIcon';
 import Text from '../../../components/Text';
 import { ThemeColors } from '../../../constants/Colors';
@@ -26,6 +27,7 @@ import { useThemeColors } from '../../../hooks/useThemeColors';
 import {
   ALL_CATEGORY, fetchCategories, fetchProducts, Product, ProductCategory, PRODUCTS_API
 } from '../../../services/products';
+import { CHECK_IN_STATUS_QUERY_KEY } from '../../../services/checkIn';
 import { fetchMarqueeTexts } from '../../../services/marquee';
 import { fetchPromoBanners } from '../../../services/promotions';
 import { fetchHeroBanners, HeroBanner } from '../../../services/heroBanners';
@@ -398,6 +400,8 @@ function HomeHeader({ banners, promoBanners, categories, isCategoriesLoading, se
       <Text style={styles.greetingSubtitle}>今天也為生活留一點空白</Text>
 
       <HomeSearchBar />
+      {/* 每日簽到（見 plan-daily-check-in.md）；狀態讀不到時卡片自己不顯示 */}
+      <CheckInCard style={{ marginBottom: 20 }} />
       <PromoCarousel banners={promoBanners} />
       <QuickActionsGrid />
 
@@ -480,6 +484,7 @@ export default function HomeScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
+  const queryClient = useQueryClient();
 
   const heroQuery = useQuery({
     queryKey: ['hero-banners'],
@@ -538,6 +543,7 @@ export default function HomeScreen() {
     // 大小輪播一起重新抓，店員在後台改完內容，顧客下拉就看得到
     heroQuery.refetch();
     promoQuery.refetch();
+    queryClient.invalidateQueries({ queryKey: CHECK_IN_STATUS_QUERY_KEY });
     const result = await refetch();
     setDisplayedProducts(shuffle(result.data ?? productsPool).slice(0, 12));
   };

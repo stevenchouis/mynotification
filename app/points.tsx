@@ -8,9 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
+import CheckInCard from '../components/CheckInCard';
 import MemberTierCard from '../components/MemberTierCard';
 import Text from '../components/Text';
 import { ThemeColors } from '../constants/Colors';
@@ -19,6 +21,7 @@ import { useThemeColors } from '../hooks/useThemeColors';
 import {
   fetchLoyaltyBalance, fetchLoyaltyMe, fetchLoyaltyTransactions, LOYALTY_ME_QUERY_KEY,
 } from '../services/loyalty';
+import { CHECK_IN_STATUS_QUERY_KEY } from '../services/checkIn';
 import { fetchMyDineInOrders, fetchRestaurants } from '../services/dineIn';
 import { fetchMyOrders } from '../services/shop';
 import { fetchMyStoreCheckouts } from '../services/storeCheckouts';
@@ -37,6 +40,7 @@ const TX_DISPLAY: Record<
   reverse_earn: { icon: 'close-circle-outline', sign: '-', colorKey: 'textSubtle', defaultReason: '訂單取消收回點數' },
   reverse_redeem: { icon: 'arrow-undo-outline', sign: '+', colorKey: 'accent', defaultReason: '訂單取消退還折抵' },
   exchange: { icon: 'ticket-outline', sign: '-', colorKey: 'tint', defaultReason: '兌換優惠券' },
+  check_in: { icon: 'calendar-outline', sign: '+', colorKey: 'success', defaultReason: '每日簽到' },
 };
 
 // 後端之後若再新增 type，舊版 App 查不到 TX_DISPLAY 會閃退，所以不認得的 type 用這個通用樣式。
@@ -69,7 +73,7 @@ function TransactionRow({
             推播（見 plan-points-expiry-reminder.md）上線後，使用者點進畫面卻看不到
             是哪一筆點數快到期，這裡補上顯示；已過期/已折抵的 earn 紀錄也會顯示當初的
             到期日，純粹是歷史資訊，不代表這批點數現在還有效 */}
-        {tx.type === 'earn' && tx.expires_at && (
+        {(tx.type === 'earn' || tx.type === 'check_in') && tx.expires_at && (
           <Text style={styles.rowExpiry}>到期日：{new Date(tx.expires_at).toLocaleDateString('zh-TW')}</Text>
         )}
       </View>
@@ -85,6 +89,7 @@ export default function PointsScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
 
   const { data: balance, isLoading: isBalanceLoading } = useQuery({
     queryKey: ['loyalty-balance'],
@@ -142,10 +147,15 @@ export default function PointsScreen() {
     }, [queryClient])
   );
 
-  return (
-    <View style={styles.container}>
+  // 等級卡、簽到卡、餘額卡都放進 FlatList 的 ListHeaderComponent，整頁一起捲；
+  // 原本放在 FlatList 外面固定不動，加了簽到卡之後上方太高、只剩明細那一小塊能捲（使用者 2026-11-08 回報）
+  const listHeader = (
+    <View>
       {/* 會員等級（見 plan-member-tier.md），舊後端沒回 tier 時不顯示 */}
       {loyaltyMe && isMemberTier(loyaltyMe.tier) && <MemberTierCard me={loyaltyMe} tier={loyaltyMe.tier} />}
+
+      {/* 每日簽到（見 plan-daily-check-in.md），跟首頁共用同一張卡片 */}
+      <CheckInCard style={{ marginHorizontal: 16, marginTop: 16 }} />
 
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>目前餘額</Text>
@@ -165,36 +175,43 @@ export default function PointsScreen() {
       </View>
 
       <Text style={styles.sectionTitle}>收支明細</Text>
+    </View>
+  );
 
-      {isTxLoading ? (
-        <ActivityIndicator size="large" color={colors.tint} style={{ marginTop: 24 }} />
-      ) : (
-        <FlatList<LoyaltyTransaction>
-          data={transactions ?? []}
-          keyExtractor={(tx) => String(tx.id)}
-          contentContainerStyle={styles.listContent}
-          refreshing={isRefetching}
-          onRefresh={() => {
-            refetch();
-            queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
-          }}
-          renderItem={({ item }) => (
-            <TransactionRow
-              tx={item}
-              orderAmount={orderAmountByTx(item)}
-              restaurantName={restaurantNameByTx(item)}
-              colors={colors}
-              styles={styles}
-            />
-          )}
-          ListEmptyComponent={
+  return (
+    <View style={styles.container}>
+      <FlatList<LoyaltyTransaction>
+        data={isTxLoading ? [] : transactions ?? []}
+        keyExtractor={(tx) => String(tx.id)}
+        ListHeaderComponent={listHeader}
+        // edgeToEdgeEnabled：底部多留 Android 導覽列的高度，最後一筆明細才不會被蓋住
+        contentContainerStyle={[styles.listContent, { paddingBottom: 16 + insets.bottom }]}
+        refreshing={isRefetching}
+        onRefresh={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+          queryClient.invalidateQueries({ queryKey: CHECK_IN_STATUS_QUERY_KEY });
+        }}
+        renderItem={({ item }) => (
+          <TransactionRow
+            tx={item}
+            orderAmount={orderAmountByTx(item)}
+            restaurantName={restaurantNameByTx(item)}
+            colors={colors}
+            styles={styles}
+          />
+        )}
+        ListEmptyComponent={
+          isTxLoading ? (
+            <ActivityIndicator size="large" color={colors.tint} style={{ marginTop: 24 }} />
+          ) : (
             <View style={styles.emptyContainer}>
               <Ionicons name="star-outline" size={40} color={colors.border} />
               <Text style={styles.emptyText}>目前還沒有任何點數紀錄</Text>
             </View>
-          }
-        />
-      )}
+          )
+        }
+      />
     </View>
   );
 }
@@ -213,12 +230,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   exchangeButtonText: { fontSize: 14, fontWeight: '600', color: colors.onTint, marginLeft: 6 },
 
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginHorizontal: 16, marginBottom: 4 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: colors.text, marginHorizontal: 16, marginBottom: 12 },
 
-  listContent: { padding: 16, paddingTop: 8 },
+  listContent: { paddingTop: 0 },
   row: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface,
-    borderRadius: 12, padding: 14, marginBottom: 10,
+    borderRadius: 12, padding: 14, marginBottom: 10, marginHorizontal: 16,
   },
   rowIcon: { marginRight: 12 },
   rowInfo: { flex: 1 },
