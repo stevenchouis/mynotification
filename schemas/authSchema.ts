@@ -33,6 +33,10 @@ export const registerSchema = z.object({
     .refine((date) => date <= new Date(), {
       message: "生日不能是未來的日期",
     }),
+  // 推薦碼（選填，見 plan-referral.md）：6 碼英數、去掉 0/O/1/I，留空不檢查；輸入時已轉大寫
+  referralCode: z.string()
+    .regex(/^([A-HJ-NP-Z2-9]{6})?$/, '推薦碼是 6 碼英文或數字')
+    .optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "兩次輸入的密碼不一致",
   path: ["confirmPassword"], 

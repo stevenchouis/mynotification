@@ -314,6 +314,16 @@ export default function RootLayout() {
                   headerBackTitle: '返回'
                 }}
               />
+              {/* 推薦好友（見 plan-referral.md）：從 settings.tsx「帳號管理」進來 */}
+              <Stack.Screen
+                name="referral"
+                options={{
+                  headerShown: true,
+                  title: '推薦好友',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
               {/* 點數兌換優惠券（見 plan-points-exchange.md）：從紅利點數畫面的餘額卡片進來 */}
               <Stack.Screen
                 name="points-exchange"

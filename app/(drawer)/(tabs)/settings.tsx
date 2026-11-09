@@ -408,6 +408,16 @@ const uploadToSupabase = async (uri: string) => {
             <Text style={styles.badgeText}>門市結帳</Text>
           </View>
         </Pressable>
+        {/* 推薦好友（見 plan-referral.md） */}
+        <Pressable
+          onPress={() => router.push('/referral')}
+          style={[styles.menuItem, { marginTop: 10 }]}
+        >
+          <Text style={styles.menuItemText}>推薦好友</Text>
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>送優惠券</Text>
+          </View>
+        </Pressable>
         <Pressable
           onPress={handleLogout}
           style={({ pressed }) => [

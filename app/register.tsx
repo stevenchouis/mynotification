@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import axios from 'axios';
-import { useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -18,10 +18,14 @@ import Text from '../components/Text';
 import { ThemeColors } from '../constants/Colors';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { RegisterFormValues, registerSchema } from '../schemas/authSchema';
+import { REFERRAL_ERROR_MESSAGE, normalizeReferralCode } from '../types/referral';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  // 推薦連結 mynotification://register?ref=XXXXXX 打開時自動帶入推薦碼（見 plan-referral.md）
+  const { ref } = useLocalSearchParams<{ ref?: string }>();
+  const initialReferralCode = typeof ref === 'string' ? normalizeReferralCode(ref).slice(0, 6) : '';
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -32,9 +36,9 @@ export default function RegisterScreen() {
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
   // 初始化 Hook Form
-  const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<RegisterFormValues>({
+  const { control, handleSubmit, reset, watch, setError, formState: { errors } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: '', password: '', confirmPassword: '' }
+    defaultValues: { email: '', password: '', confirmPassword: '', referralCode: initialReferralCode }
   });
 
   // 監聽密碼欄位以實作即時強度顯示
@@ -61,12 +65,23 @@ export default function RegisterScreen() {
         email: data.email,
         password: data.password,
         birthday: formatDateLocal(data.birthday), // 轉成後端要的 YYYY-MM-DD（用本地日期，toISOString 在 UTC+8 會少一天）
+        // 推薦碼選填；空字串不送，舊後端也不受影響
+        ...(data.referralCode ? { referral_code: data.referralCode } : {}),
       });
-      Alert.alert("註冊成功", "我們已經準備了一張新會員歡迎禮券，登入後至「我的優惠券」查看", [
+      const welcome = data.referralCode
+        ? "我們已經準備了新會員歡迎禮券和好友推薦禮券，登入後至「我的優惠券」查看"
+        : "我們已經準備了一張新會員歡迎禮券，登入後至「我的優惠券」查看";
+      Alert.alert("註冊成功", welcome, [
         { text: "OK", onPress: () => router.replace('/') }
       ]);
     } catch (error: any) {
-      Alert.alert("註冊失敗", error.response?.data?.detail || "伺服器連線失敗");
+      const detail = error.response?.data?.detail;
+      // 推薦碼錯誤（detail 是帶 error_code 的物件）：整個註冊不成立，把錯誤標在推薦碼欄位上
+      if (detail && typeof detail === 'object' && detail.error_code && REFERRAL_ERROR_MESSAGE[detail.error_code]) {
+        setError('referralCode', { message: `${REFERRAL_ERROR_MESSAGE[detail.error_code]}，或清空後再註冊` });
+        return;
+      }
+      Alert.alert("註冊失敗", (typeof detail === 'string' && detail) || "伺服器連線失敗");
     } finally {
       setLoading(false);
     }
@@ -161,6 +176,26 @@ export default function RegisterScreen() {
           )}
         />
       {errors.birthday && <Text style={{ color: colors.danger }}>{errors.birthday.message}</Text>}
+
+        {/* 推薦碼（選填，見 plan-referral.md） */}
+        <Text style={[styles.label, { marginTop: 20 }]}>推薦碼（選填）</Text>
+        <Controller
+          control={control}
+          name="referralCode"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <TextInput
+              style={[styles.input, errors.referralCode && styles.inputError]}
+              onBlur={onBlur}
+              onChangeText={(text) => onChange(normalizeReferralCode(text))}
+              value={value}
+              placeholder="有朋友的推薦碼？填了多拿一張優惠券"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={6}
+            />
+          )}
+        />
+        {errors.referralCode && <Text style={styles.errorText}>{errors.referralCode.message}</Text>}
 
         {/* 提交按鈕 */}
         <Pressable
