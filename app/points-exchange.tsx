@@ -85,8 +85,9 @@ export default function PointsExchangeScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
+      // edgeToEdgeEnabled：整個捲動區在 Android 導覽列上方截止，捲動途中內容不會從導覽列後面經過（使用者 2026-11-09 要求，比照 register.tsx）
+      style={[styles.container, { marginBottom: insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
       refreshControl={
         <RefreshControl
           refreshing={isRefetching}

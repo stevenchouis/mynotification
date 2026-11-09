@@ -76,9 +76,10 @@ export default function DeleteAccountScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* edgeToEdgeEnabled：底部多留 Android 導覽列的高度，避免刪除按鈕被蓋住 */}
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingBottom: 48 + insets.bottom }]}
+        // edgeToEdgeEnabled：整個捲動區在 Android 導覽列上方截止，捲動途中內容不會從導覽列後面經過（使用者 2026-11-09 要求，比照 register.tsx）
+        style={{ marginBottom: insets.bottom }}
+        contentContainerStyle={[styles.container, { paddingBottom: 48 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.warningBox}>

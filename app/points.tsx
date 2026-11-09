@@ -179,13 +179,13 @@ export default function PointsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    // edgeToEdgeEnabled：整個清單在 Android 導覽列上方截止，捲動途中明細不會從導覽列後面經過（使用者 2026-11-09 要求，比照 register.tsx）
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
       <FlatList<LoyaltyTransaction>
         data={isTxLoading ? [] : transactions ?? []}
         keyExtractor={(tx) => String(tx.id)}
         ListHeaderComponent={listHeader}
-        // edgeToEdgeEnabled：底部多留 Android 導覽列的高度，最後一筆明細才不會被蓋住
-        contentContainerStyle={[styles.listContent, { paddingBottom: 16 + insets.bottom }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
         refreshing={isRefetching}
         onRefresh={() => {
           refetch();

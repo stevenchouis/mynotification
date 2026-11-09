@@ -90,12 +90,13 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-      style={styles.container}
+      // app.json 開了 edgeToEdgeEnabled，內容會畫到 Android 底部導覽列後面。原本只在捲動內容底部多留
+      // insets.bottom（捲到最底不會被蓋住），但捲動途中內容仍會從透明導覽列後面經過，看起來像重疊
+      // （使用者 2026-11-09 回報）。改成整個畫面在導覽列上方截止，內容不再畫到導覽列後面
+      style={[styles.container, { paddingBottom: insets.bottom }]}
     >
-      {/* app.json 開了 edgeToEdgeEnabled，內容會畫到 Android 底部導覽列後面；這頁有 header 所以上緣
-          沒問題，但最下方的「返回登入」會被導覽列蓋住，底部要多留導覽列的高度 */}
       <ScrollView
-        contentContainerStyle={[styles.scrollInner, { paddingBottom: 24 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollInner, { paddingBottom: 24 }]}
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>建立新帳號</Text>

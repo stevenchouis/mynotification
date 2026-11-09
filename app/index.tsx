@@ -323,7 +323,10 @@ const LoginIndex = () => {
           // onPress={() => router.push('/register')}
           onPress={() => router.replace('/register')}
         >
-          <Text style={styles.registerLinkText}>還沒有帳號？立即註冊</Text>
+          {/* 只有「立即註冊」加底線：使用者 2026-11-09 回報兩行連結看不出可以按 */}
+          <Text style={styles.registerLinkHint}>
+            還沒有帳號？<Text style={styles.registerLinkText}>立即註冊</Text>
+          </Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -399,10 +402,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   lineButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Magic Link 連結樣式，比照 registerLink 的簡樸連結風格
-  magicLinkLink: { marginTop: 16, alignItems: 'center' },
-  magicLinkText: { color: colors.tint, fontSize: 14, fontWeight: '500' },
+  // 加底線＋上下 padding 放大可點範圍（使用者 2026-11-09 回報看不出是連結）
+  magicLinkLink: { marginTop: 8, paddingVertical: 8, alignItems: 'center' },
+  magicLinkText: { color: colors.tint, fontSize: 14, fontWeight: '500', textDecorationLine: 'underline' },
   // Pressable 註冊連結的樣式，包含上邊距、對齊方式，以及文字顏色和字體大小, 沒背景色和外框
-  registerLink: { marginTop: 20, alignItems: 'center' },
+  registerLink: { marginTop: 12, paddingVertical: 8, alignItems: 'center' },
+  registerLinkHint: { color: colors.textMuted, fontSize: 14 },
   // Pressable 註冊連結內文字的樣式，包含顏色、字體大小和字重，讓它看起來像個可點擊的連結
-  registerLinkText: { color: colors.tint, fontSize: 14, fontWeight: '500' },
+  registerLinkText: { color: colors.tint, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
 });
