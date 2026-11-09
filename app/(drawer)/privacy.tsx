@@ -6,6 +6,8 @@ import Text from '../../components/Text';
 import { ThemeColors } from '../../constants/Colors';
 import { useThemeColors } from '../../hooks/useThemeColors';
 
+const ACCOUNT_DELETION_URL = `${process.env.EXPO_PUBLIC_API_URL}/account-deletion`;
+
 export default function PrivacyScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -50,6 +52,12 @@ export default function PrivacyScreen() {
           刪除後會立即清除您的個人資料、Google／LINE 登入綁定、紅利點數、優惠券、好友與通知；
           過去的訂單與點餐紀錄會依法保留作為交易憑證，但不再對應到您的身分。
           若有其他資料相關的疑問，請透過下方聯絡方式與我們聯繫。
+        </Text>
+        {/* 刪除帳號申請網頁（見 plan-account-deletion-web.md）：Google Play 要求已刪除 App 的人也能申請，
+            同一個網址也要填進 Play Console 的「資料安全性」 */}
+        <Text style={[styles.paragraph, { marginTop: 8 }]} selectable>
+          如果您已經移除 App，也可以到 {ACCOUNT_DELETION_URL} 輸入註冊的 Email 申請刪除帳號，
+          收到確認信並點選連結確認後即會刪除。
         </Text>
       </Section>
 

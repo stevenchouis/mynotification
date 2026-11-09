@@ -193,6 +193,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 2026-11-07 定案，完整規劃見 `plan-delete-account.md`。Google Play／App Store 規定有註冊功能的 App 必須能在 App 內自行刪除帳號。入口是 `settings.tsx`「帳號管理」最下方的「刪除帳號」文字連結（刻意不搶眼），進到 `app/delete-account.tsx`（掛在 `app/_layout.tsx` 的 `userToken` 分支）：列出會刪除的內容與目前點數／可用優惠券數量，輸入「刪除帳號」四個字才能按（四種登入方式都適用，不要求密碼）。呼叫 `services/users.ts` 的 `deleteMyAccount()`（`DELETE /users/me`），成功後清本機購物車與收藏（`useCartStore.clear()`／`useFavoritesStore.clear()`）再 `logout()`；`role=staff` 帳號後端回 403，前端提示洽管理者。後端做法是**立即匿名化、保留交易紀錄**（個資與點數／優惠券／好友／通知／推播 token 刪除，訂單與堂食紀錄保留但不再對應到人），原 Email 可以重新註冊。back-end `5db6d1a` 的實作細節：刪除標記沿用 `User.is_active`（`get_current_user` 補上檢查，舊 JWT 回 401）；email 改成 `deleted-{id}@deleted.invalid`；`Order`／`DineInOrder`／`StoreCheckout` 的 `user_id` 維持指向匿名化後的 User（不改 null）；點數明細整批刪除；**已使用**的優惠券視為交易紀錄保留，未使用的刪除。Supabase `avatars` 的頭像檔前端刪不掉，先接受殘留。
 
+**刪除帳號申請網頁（2026-11-09，見 `plan-account-deletion-web.md`）**：Google Play 資料安全性表單要求已移除 App 的人也能申請刪除，正式網址 `https://fastapi-pj-2.onrender.com/account-deletion`（back-end `cc14ab5`，後端直接回 HTML）。流程：輸入 Email → 一律顯示「如果有註冊已寄出確認信」（不透露帳號存在）→ Brevo 確認信，連結 30 分鐘、單次 → 確認頁再按一次才刪（開頁不消耗 token，防信箱掃描機器人）→ 共用 `DELETE /users/me` 的刪除邏輯（後端抽成 `account_service.delete_user_account`）。店員帳號顯示請聯絡管理者。同一 Email 每分鐘 1 次、每天 5 次。前端只在 `app/(drawer)/privacy.tsx`「您的權利」寫出這個網址；**上架時要把網址填進 Play Console**。
+
 ### 狀態管理模式
 
 三個職責嚴格分離的 store：
@@ -231,6 +233,7 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | GET | `/api/v1/users/me` | 取得目前使用者資料（含 `einvoice_carrier`，見「電子發票載具」章節） |
 | PUT | `/api/v1/users/me` | 更新個人資料（例如 avatar_url）；可帶 `einvoice_carrier`（字串設定、`null` 清除，格式不合 `400 invalid_einvoice_carrier`），沒帶的欄位不動 |
 | DELETE | `/api/v1/users/me` | 刪除（匿名化）目前帳號，成功回 204，立即生效；`role=staff` 回 403；之後舊 JWT 一律 401。見「刪除帳號」章節 |
+| GET/POST | `/account-deletion`、`/account-deletion/confirm`、`/api/v1/account-deletion/request`、`/api/v1/account-deletion/confirm` | 刪除帳號申請網頁（後端 HTML）與 API，見「刪除帳號」章節；confirm 失敗 `400 invalid_deletion_token`、店員 `403 staff_account` |
 | POST | `/api/v1/users/push-tokens` | 註冊 Expo Push Token（同一個 token 已存在就更新擁有者與 `last_seen_at`，換人登入自動移轉） |
 | POST | `/api/v1/users/push-tokens/unregister` | 登出時解除這支手機的推播，body `{ token }`，只刪屬於目前使用者的，一律 204 |
 | GET | `/api/v1/notifications/inbox` | 取得通知列表 |
