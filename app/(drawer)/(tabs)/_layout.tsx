@@ -9,6 +9,7 @@ import { AppState, Platform, Vibration } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import PickupCallModal from '../../../components/PickupCallModal';
+import PopupBannerModal from '../../../components/PopupBannerModal';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useCartStore } from '../../../store/useCartStore';
@@ -130,6 +131,8 @@ export default function TabLayout() {
     <>
     {/* 取餐叫號全螢幕彈窗：Modal 會蓋在所有畫面上方，掛在這裡就涵蓋登入後的所有畫面 */}
     <PickupCallModal />
+    {/* 首頁開屏活動彈窗（見 plan-popup-banner.md），要不要跳由 home.tsx 判斷 */}
+    <PopupBannerModal />
     {/* headerShown: false — header 交給外層的 (drawer)/_layout.tsx 統一顯示（含選單按鈕） */}
     <Tabs
       screenOptions={{
