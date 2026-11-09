@@ -11,9 +11,10 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // 取得 accessToken 後的共用收尾流程：存 Token、同步 Push Token、導頁
 // 帳密登入、Google 登入、Magic Link 登入都會呼叫這裡，確保三種登入方式的後續行為一致
-export async function completeLogin(accessToken: string) {
+// refreshToken：續期證（見 plan-refresh-token.md），舊後端沒回時是 undefined，行為跟以前一樣
+export async function completeLogin(accessToken: string, refreshToken?: string | null) {
   // 從後端回應中取得 Access Token，並且存到全局狀態管理的 userToken 中，這樣整個 App 就知道使用者已經登入了，並且可以在需要驗證的 API 呼叫中使用這個 Token 來授權。
-  await useAuthStore.getState().setUserToken(accessToken);
+  await useAuthStore.getState().setUserToken(accessToken, refreshToken);
 
   // 取得此裝置的 Expo Push Token
   // 註：實體手機才能取得有效 Token，模擬器會跳過此步驟

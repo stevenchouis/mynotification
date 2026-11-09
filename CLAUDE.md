@@ -207,7 +207,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 
 ### API 層
 
-- **`services/api.ts`** — 預先設定好的 Axios 實例，內建 request 攔截器（自動從 SecureStore 附加 `Authorization: Bearer <token>`）與 response 攔截器（遇到 401 時清除已儲存的 token）。需要驗證的呼叫請從此處匯入 `api`，而非直接使用原生 `axios`。注意：目前部分畫面仍直接在內部呼叫 `axios.create()` — 應優先改用共用的 `api` 實例。
+- **`services/api.ts`** — 預先設定好的 Axios 實例，內建 request 攔截器（自動從 SecureStore 附加 `Authorization: Bearer <token>`）與 response 攔截器。需要驗證的呼叫**一律**從此處匯入 `api`，不要直接用原生 `axios` 手動帶 token——那樣吃不到自動續期，通行證過期就直接失敗（2026-11-09 已把 `inbox.tsx`、`settings.tsx`、`(tabs)/_layout.tsx` 改成共用實例）。
+- **登入自動續期（Refresh Token，2026-11-09，見 `plan-refresh-token.md`）** — 通行證（JWT）30 分鐘過期；登入時後端另發續期證 `refresh_token`（存 SecureStore 的 `refreshToken`，`useAuthStore.ts` 的 `REFRESH_TOKEN_KEY`，不放 Zustand 狀態）。`api.ts` 回應攔截器收到 401：先看這個請求帶的是不是舊通行證（別的請求已經換好就直接用新的重送），否則呼叫 `POST /login/refresh` 換一組新的（**同時多個 401 共用同一個 `refreshPromise`**，避免同一張續期證被用兩次）、存新的兩張證、`useAuthStore.setState({ userToken })`（不走 `setUserToken`，那個會清掉所有查詢快取）、重送原請求一次（`_retried`）；換證失敗或重送仍 401 才登出並跳「登入已過期」。後端每次換證都作廢舊的續期證（rotation），超過 30 秒再用舊的會被當成外洩、該帳號所有裝置一起登出（30 秒內有寬限）。續期證效期依角色：customer 30 天、staff 7 天，每次換證重新起算。`logout()` 會先用原生 `fetch` 呼叫 `POST /logout` 作廢這台裝置的續期證（不等結果）。`completeLogin(accessToken, refreshToken?)`，四個登入呼叫都帶 `res.data.refresh_token`；舊後端沒回時行為跟以前一樣。實機測試：Render 環境變數 `SHORT_ACCESS_TOKEN_USER_IDS=<user id>` 可讓指定帳號的通行證只有 1 分鐘，測完要刪掉。
 
 ### Supabase 整合
 
@@ -223,6 +224,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | POST | `/api/v1/login/magic-link/request` | 請求寄送 Magic Link 登入信，body `{ email }`，回傳 204 |
 | GET | `/api/v1/login/magic-link/redirect` | 信件連結的落地頁，轉跳到 `mynotification://magic-login?token=xxx`（不消耗 token，避免信箱安全掃描機器人誤觸） |
 | POST | `/api/v1/login/magic-link/verify` | 用連結中的 token 換取 JWT，token 為單次使用 |
+| POST | `/api/v1/login/refresh` | 用續期證換新的通行證＋新的續期證（舊的作廢），body `{ refresh_token }`，不需 Authorization；失敗 `401 { error_code: "invalid_refresh_token" }`。四個登入端點回應都多 `refresh_token`，見 API 層的「登入自動續期」 |
+| POST | `/api/v1/logout` | 作廢這張續期證，body `{ refresh_token }`，一律 204 |
 | POST | `/api/v1/users/register` | 註冊。後端會在同一個 DB transaction 內順便建立一張新會員歡迎禮券（$100、30 天效期），回應格式不受影響，前端不需要處理。body 可帶選填 `referral_code`（推薦好友），有效時同時發 $50 推薦禮券，無效回 `400 { error_code: "invalid_referral_code" }` 且註冊不成立 |
 | GET | `/api/v1/users/me` | 取得目前使用者資料（含 `einvoice_carrier`，見「電子發票載具」章節） |
 | PUT | `/api/v1/users/me` | 更新個人資料（例如 avatar_url）；可帶 `einvoice_carrier`（字串設定、`null` 清除，格式不合 `400 invalid_einvoice_carrier`），沒帶的欄位不動 |

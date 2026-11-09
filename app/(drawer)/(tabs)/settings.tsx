@@ -3,7 +3,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useFocusEffect } from '@react-navigation/native';
 import { createClient } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -38,7 +37,6 @@ const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // 頭貼上傳前縮小到這個邊長（picker 已經裁成 1:1）。頭貼也會被當成好友推播的圖片使用
 // （見 plan-push-image.md），裝置收到通知時才自己下載，原圖動輒數 MB 可能導致圖片不顯示，
@@ -97,9 +95,8 @@ export default function SettingsScreen() {
   const { data: user, isLoading } = useQuery({
     queryKey: ['userProfile'],
     queryFn: async () => {
-      const response = await axios.get(`${API_URL}/api/v1/users/me`, {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
+      // 共用 api 實例（自動帶 token、過期自動換證，見 plan-refresh-token.md）
+      const response = await api.get('/api/v1/users/me');
       return response.data;
     },
     enabled: !!userToken,
@@ -108,9 +105,7 @@ export default function SettingsScreen() {
   // 3. 更新後端頭像網址的 Mutation
   const updateAvatarMutation = useMutation({
     mutationFn: (url: string) =>
-      axios.put(`${API_URL}/api/v1/users/me`, { avatar_url: url }, {
-        headers: { Authorization: `Bearer ${userToken}` }
-      }),
+      api.put('/api/v1/users/me', { avatar_url: url }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       Alert.alert("成功", "個人頭像已更新");

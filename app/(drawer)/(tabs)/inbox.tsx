@@ -1,7 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from "@shopify/flash-list";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
@@ -16,6 +15,8 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
 import { Notification } from '../../../types/notification';
 
+import { api } from '../../../services/api';
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const NOTIFICATIONS_API = `${API_URL}/api/v1/notifications`;
 
@@ -27,10 +28,8 @@ export default function InboxScreen() {
   const token = useAuthStore(state => state.userToken);
   const setUnreadCount = useNotificationStore(state => state.setUnreadCount);
 
-  // 建立 Axios 實例
-  const api = axios.create({
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  // 改用共用的 api 實例（2026-11-09，見 plan-refresh-token.md）：原本在這裡自建 axios 實例手動帶 token，
+  // 通行證過期時吃不到 services/api.ts 的自動換證，會直接失敗
 
   // 1. 獲取通知列表
   const { 

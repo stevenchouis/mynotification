@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query'; // 1. 匯入 Query 工具
-import axios from 'axios';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Tabs } from 'expo-router';
@@ -9,6 +8,7 @@ import { AppState, Platform, Vibration } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import PickupCallModal from '../../../components/PickupCallModal';
+import { api } from '../../../services/api';
 import PopupBannerModal from '../../../components/PopupBannerModal';
 import { useThemeColors } from '../../../hooks/useThemeColors';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -18,7 +18,6 @@ import { useNotificationStore } from '../../../store/useNotificationStore';
 import { usePickupCallStore } from '../../../store/usePickupCallStore';
 import { Notification } from '../../../types/notification';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // 取餐叫號震動：震 400ms、停 200ms、再震 400ms（Android 第一個數字是開始前的等待時間）
 const PICKUP_VIBRATION_PATTERN = [0, 400, 200, 400];
@@ -39,9 +38,8 @@ export default function TabLayout() {
   const { data: notifications = [] } = useQuery<Notification[]>({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const response = await axios.get(`${API_URL}/api/v1/notifications/inbox`, {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
+      // 共用 api 實例（自動帶 token、過期自動換證，見 plan-refresh-token.md）
+      const response = await api.get('/api/v1/notifications/inbox');
       return response.data;
     },
     enabled: !!userToken, // 只有在有 Token 時才抓取
@@ -60,11 +58,9 @@ export default function TabLayout() {
     const syncPushToken = async () => {
       try {
         const { data: token } = await Notifications.getExpoPushTokenAsync();
-        await axios.post(
-          `${API_URL}/api/v1/users/push-tokens`,
-          { token, device_name: Platform.OS, app_id: 'mynotification' },
-          { headers: { Authorization: `Bearer ${userToken}` } }
-        );
+        await api.post('/api/v1/users/push-tokens', {
+          token, device_name: Platform.OS, app_id: 'mynotification',
+        });
       } catch (e) {
         console.warn("Token 同步失敗", e);
       }

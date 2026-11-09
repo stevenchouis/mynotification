@@ -49,7 +49,7 @@ export default function MagicLoginScreen() {
       }
       try {
         const res = await axios.post(`${API_URL}/api/v1/login/magic-link/verify`, { token });
-        await completeLogin(res.data.access_token);
+        await completeLogin(res.data.access_token, res.data.refresh_token);
       } catch (error: any) {
         setStatus('error');
         setErrorMessage(error.response?.data?.detail || '登入連結已失效或過期，請重新索取');

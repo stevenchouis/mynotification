@@ -97,7 +97,7 @@ const LoginIndex = () => {
         params,
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
       );
-      await completeLogin(loginRes.data.access_token);
+      await completeLogin(loginRes.data.access_token, loginRes.data.refresh_token);
     } catch (error: any) {
       const detail = error.response?.data?.detail || '登入失敗，請檢查網路或帳密';
       Alert.alert('錯誤', detail);
@@ -115,7 +115,7 @@ const LoginIndex = () => {
         return;
       }
       const loginRes = await axios.post(`${API_URL}/api/v1/login/google`, { id_token: idToken });
-      await completeLogin(loginRes.data.access_token);
+      await completeLogin(loginRes.data.access_token, loginRes.data.refresh_token);
     } catch (error: any) {
       const detail = error.response?.data?.detail || 'Google 登入失敗，請稍後再試';
       Alert.alert('錯誤', detail);
@@ -135,7 +135,7 @@ const LoginIndex = () => {
         return;
       }
       const loginRes = await axios.post(`${API_URL}/api/v1/login/line`, { id_token: idToken });
-      await completeLogin(loginRes.data.access_token);
+      await completeLogin(loginRes.data.access_token, loginRes.data.refresh_token);
     } catch (error: any) {
       const detail = error.response?.data?.detail || 'LINE 登入失敗，請稍後再試';
       Alert.alert('錯誤', detail);
