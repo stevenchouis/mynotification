@@ -322,6 +322,16 @@ export default function RootLayout() {
                   headerBackTitle: '返回'
                 }}
               />
+              {/* 電子發票載具（見 plan-einvoice-carrier.md）：從 settings.tsx「帳號管理」或會員條碼頁進來 */}
+              <Stack.Screen
+                name="einvoice-carrier"
+                options={{
+                  headerShown: true,
+                  title: '電子發票載具',
+                  headerTitleAlign: 'center',
+                  headerBackTitle: '返回'
+                }}
+              />
               {/* 推薦好友（見 plan-referral.md）：從 settings.tsx「帳號管理」進來 */}
               <Stack.Screen
                 name="referral"

@@ -106,6 +106,8 @@ export default function OrderDetailScreen() {
         {order.paid_at && (
           <Text style={styles.metaText}>付款時間：{new Date(order.paid_at).toLocaleString('zh-TW')}</Text>
         )}
+        {/* 下單當下記錄的電子發票載具（見 plan-einvoice-carrier.md） */}
+        {order.einvoice_carrier && <Text style={styles.metaText}>發票載具：{order.einvoice_carrier}</Text>}
         {/* 2026-09-15：實測發現 ECPay 付款失敗（例如「訂單過期」）後，訂單會卡在 pending、
             使用者卻沒有任何管道回去繼續付款——後端 POST /orders/{id}/checkout 設計上本來就
             允許對同一筆 pending 訂單重複呼叫（見 CLAUDE.md ECPay 章節），這裡補上入口 */}

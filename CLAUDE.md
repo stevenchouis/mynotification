@@ -157,6 +157,16 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 - **推薦好友（2026-11-08，見 `plan-referral.md`）** — `app/referral.tsx`（掛 `userToken` 分支，入口在 `settings.tsx`「帳號管理」）：我的推薦碼（6 碼英數、去掉 0/O/1/I，`selectable` 長按複製——沒裝剪貼簿套件，裝了要重新 `eas build`）＋`Share.share`、推薦成果、還能補填時顯示「輸入推薦碼」。使用者定案：雙方送券（新會員填碼當下拿 $50，推薦人等新會員**第一筆消費完成**才拿 $100，30 天效期）、推薦人每年最多領 10 次、補填限註冊 7 天內且還沒消費（給 Google／LINE／Magic Link 自動建立的帳號）、不自動加好友。`app/register.tsx` 加選填推薦碼欄位（`registerSchema.referralCode`），推薦連結會自動帶入推薦碼：分享的是後端 https 中繼頁 `GET /api/v1/referrals/landing?code=`（LINE 不會把 `mynotification://` 變成可點連結，2026-11-08 實測），中繼頁再跳 `mynotification://register?ref=XXXXXX`（只在未登入時有效；分享文字一定寫出推薦碼，因為沒裝 App 的人只能手動輸入）。舊帳號沒有註冊時間（`users.created_at` 不回填），不能補填。**已登入時點推薦連結**：`register` 只在未登入分支，導覽器會報「state or screen couldn't be applied」，所以 `app/+native-intent.tsx` 的 `redirectSystemPath` 先讀 SecureStore 的 token（冷啟動時 `useAuthStore` 可能還沒載完），已登入就把 `register?ref=` 改寫成 `/referral?code=`，`referral.tsx` 在 `can_apply_code` 時把碼帶入輸入框（不自動送出）；推薦碼無效時後端回 `400 invalid_referral_code`、整個註冊不成立，前端用 `setError` 標在推薦碼欄位。錯誤碼對應文字共用 `types/referral.ts` 的 `REFERRAL_ERROR_MESSAGE`。推薦人拿到獎勵的推播沿用 `screen: "Coupons"` + `coupon_id`（`type: "referral_rewarded"`）。
 - **`types/dineIn.ts` 補上的技術債** — `DineInOrderStatus` 原本只有 `'pending'`，但後端 `PATCH /dine-in-orders/{id}/status`（店員 App 專用）早就能把訂單標成 `'completed'`，這次順便補上 `'completed'` 值與「已完成」標籤，不然顧客端點餐紀錄遇到已完成訂單會顯示空白狀態文字。
 
+### 電子發票載具（E-invoice Carrier）
+
+2026-11-09 定案，完整規劃見 `plan-einvoice-carrier.md`。使用者決定：**綁定＋出示條碼＋訂單記錄載具**（這次**不**真正開發票，之後串綠界電子發票另開 plan）、**存在後端會員資料**、**只檢查格式**不向財政部驗證。
+
+- **格式** — 財政部手機條碼：「/」加 7 碼（`0-9`、`A-Z`、`.`、`+`、`-`），`types/einvoice.ts` 的 `EINVOICE_CARRIER_PATTERN`／`normalizeEinvoiceCarrier()`（轉大寫、去空白），後端同一條規則再檢查一次，不合回 `400 invalid_einvoice_carrier`。
+- **設定畫面 `app/einvoice-carrier.tsx`**（掛 `userToken` 分支，入口在 `settings.tsx`「帳號管理」，右側顯示已綁定號碼或「未設定」）：沒綁定直接顯示輸入框；已綁定先顯示條碼，可「修改」「清除」。讀寫走 `services/users.ts` 的 `fetchMyProfile()`／`updateEinvoiceCarrier()`（`PUT /users/me` 只帶 `einvoice_carrier`，`null` 清除），queryKey 沿用 `settings.tsx` 的 `['userProfile']`（`USER_PROFILE_QUERY_KEY`）。
+- **條碼 `components/CarrierBarcode.tsx`** — Code39（財政部標準），沿用 `react-native-barcode-svg`（內含 jsbarcode，不用裝新套件、不用重新 build），固定白底黑條不隨深色模式變色；跟會員條碼一樣**所有預設 prop 都要明確傳**（React 19 不支援函式元件 `defaultProps`，沒傳 `singleBarWidth` 會讓 Android 當掉）。
+- **會員條碼頁 `app/member-code.tsx`** — 頂端多一個「會員條碼／發票載具」切換，發票載具模式顯示同一個 `CarrierBarcode`，未設定時有「前往設定」。
+- **訂單快照** — `POST /orders`、`/dine-in-orders`、`/store-checkouts` 建立時，後端自動把會員當下的載具複製到訂單（前端不傳），之後改載具不影響舊訂單；`app/order/[id].tsx`、`app/dine-in/order/[id].tsx` 有值時顯示「發票載具：/ABC1234」。`staff-scanner` 會員快速結帳的會員卡片與結帳成功頁也會顯示。
+
 ### 多門市（Restaurant）
 
 2026-09-10 跟 `back-end`／`staff` 三方討論後定案：既有堂食點餐流程假設「只有一間餐廳」（顧客手 key 自由文字桌號，沒有防呆），要支援多間門市。跨 session 確認的業務範圍：**菜單每間門市各自獨立**、**這次範圍只限堂食**（`Table`／`DineInOrder`／`MenuItem`，網購商店 `Product`/`Order` 不動）、**一個店員帳號只屬於一間門市**（`staff-scanner` 依 token 的 `restaurant_id` 自動 scope，不需要餐廳選擇器——這個簡化只限店員端，顧客端仍需選餐廳）、**現有測試桌位/點餐資料直接捨棄重建，不做遷移**。
@@ -212,8 +222,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | GET | `/api/v1/login/magic-link/redirect` | 信件連結的落地頁，轉跳到 `mynotification://magic-login?token=xxx`（不消耗 token，避免信箱安全掃描機器人誤觸） |
 | POST | `/api/v1/login/magic-link/verify` | 用連結中的 token 換取 JWT，token 為單次使用 |
 | POST | `/api/v1/users/register` | 註冊。後端會在同一個 DB transaction 內順便建立一張新會員歡迎禮券（$100、30 天效期），回應格式不受影響，前端不需要處理。body 可帶選填 `referral_code`（推薦好友），有效時同時發 $50 推薦禮券，無效回 `400 { error_code: "invalid_referral_code" }` 且註冊不成立 |
-| GET | `/api/v1/users/me` | 取得目前使用者資料 |
-| PUT | `/api/v1/users/me` | 更新個人資料（例如 avatar_url） |
+| GET | `/api/v1/users/me` | 取得目前使用者資料（含 `einvoice_carrier`，見「電子發票載具」章節） |
+| PUT | `/api/v1/users/me` | 更新個人資料（例如 avatar_url）；可帶 `einvoice_carrier`（字串設定、`null` 清除，格式不合 `400 invalid_einvoice_carrier`），沒帶的欄位不動 |
 | DELETE | `/api/v1/users/me` | 刪除（匿名化）目前帳號，成功回 204，立即生效；`role=staff` 回 403；之後舊 JWT 一律 401。見「刪除帳號」章節 |
 | POST | `/api/v1/users/push-tokens` | 註冊 Expo Push Token |
 | GET | `/api/v1/notifications/inbox` | 取得通知列表 |

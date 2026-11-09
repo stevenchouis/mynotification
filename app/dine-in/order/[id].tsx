@@ -75,6 +75,8 @@ export default function DineInOrderDetailScreen() {
         {order.payment_method && (
           <Text style={styles.metaText}>付款方式：{PAYMENT_METHOD_LABEL[order.payment_method]}</Text>
         )}
+        {/* 下單當下記錄的電子發票載具（見 plan-einvoice-carrier.md） */}
+        {order.einvoice_carrier && <Text style={styles.metaText}>發票載具：{order.einvoice_carrier}</Text>}
       </View>
 
       {(order.coupon_discount > 0 || order.points_earned > 0 || order.points_used > 0) && (

@@ -77,6 +77,9 @@ export interface DineInOrder {
   pickup_number?: number | null;
   called_at?: string | null;
   call_count?: number;
+  // 電子發票載具（2026-11-09，見 plan-einvoice-carrier.md）：後端在下單當下從會員資料複製的快照，
+  // 之後會員改載具不影響這筆；舊資料／舊後端沒有這個欄位
+  einvoice_carrier?: string | null;
 }
 
 // 取餐號碼顯示補零成 3 位數（17 → "017"），超過 999 就照原數字顯示

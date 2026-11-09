@@ -2,20 +2,25 @@
 // 會員條碼/QR Code 畫面：按「產生會員碼」出示限時碼給店員掃描辨識身份，於門市收銀結帳。
 // 限時碼產生/倒數/重新產生邏輯完全比照 app/coupon/[id].tsx 的核銷碼設計（10 分鐘效期、單次使用）。
 import { useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import Barcode from 'react-native-barcode-svg';
 import QRCode from 'react-native-qrcode-svg';
 
+import CarrierBarcode from '../components/CarrierBarcode';
 import Text from '../components/Text';
 import TierBadge from '../components/TierBadge';
 import { ThemeColors } from '../constants/Colors';
 import { isMemberTier } from '../constants/loyalty';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { fetchLoyaltyMe, generateMemberCode, LOYALTY_ME_QUERY_KEY } from '../services/loyalty';
+import { USER_PROFILE_QUERY_KEY, fetchMyProfile } from '../services/users';
 import { MemberCodeResponse } from '../types/loyalty';
 
 type CodeFormat = 'barcode' | 'qrcode';
+// 上方切換：會員條碼（原本的畫面）／發票載具（見 plan-einvoice-carrier.md）
+type ScreenMode = 'member' | 'carrier';
 
 export default function MemberCodeScreen() {
   const colors = useThemeColors();
@@ -25,6 +30,9 @@ export default function MemberCodeScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [format, setFormat] = useState<CodeFormat>('barcode');
+  const [mode, setMode] = useState<ScreenMode>('member');
+  const { data: profile } = useQuery({ queryKey: USER_PROFILE_QUERY_KEY, queryFn: fetchMyProfile });
+  const carrier = profile?.einvoice_carrier ?? null;
   // 會員等級徽章（見 plan-member-tier.md），出示給店員時一眼看出是不是銀卡/金卡
   const { data: loyaltyMe } = useQuery({ queryKey: LOYALTY_ME_QUERY_KEY, queryFn: fetchLoyaltyMe });
 
@@ -57,8 +65,48 @@ export default function MemberCodeScreen() {
 
   const isCodeExpired = memberCode !== null && remainingSeconds <= 0;
 
+  const modeTabs = (
+    <View style={styles.modeTabRow}>
+      {(['member', 'carrier'] as const).map((m) => (
+        <Pressable
+          key={m}
+          style={[styles.modeTab, mode === m && styles.modeTabActive]}
+          onPress={() => setMode(m)}
+        >
+          <Text style={[styles.modeTabText, mode === m && styles.modeTabTextActive]}>
+            {m === 'member' ? '會員條碼' : '發票載具'}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  if (mode === 'carrier') {
+    return (
+      <View style={styles.container}>
+        {modeTabs}
+        {carrier ? (
+          <>
+            <Text style={styles.title}>出示給店員掃描發票載具</Text>
+            <Text style={styles.subtitle}>發票會存到你的手機條碼載具</Text>
+            <CarrierBarcode carrier={carrier} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.title}>還沒有設定發票載具</Text>
+            <Text style={styles.subtitle}>設定手機條碼後，結帳時可以在這裡出示</Text>
+            <Pressable style={styles.button} onPress={() => router.push('/einvoice-carrier')}>
+              <Text style={styles.buttonText}>前往設定</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
+      {modeTabs}
       {isMemberTier(loyaltyMe?.tier) && (
         <View style={styles.tierBadgeRow}>
           <TierBadge tier={loyaltyMe.tier} />
@@ -128,6 +176,15 @@ export default function MemberCodeScreen() {
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: 24, justifyContent: 'center', alignItems: 'center' },
   tierBadgeRow: { alignItems: 'center', marginBottom: 12 },
+  // 上方「會員條碼／發票載具」切換，固定在畫面頂端，不跟著內容置中
+  modeTabRow: {
+    position: 'absolute', top: 16, left: 24, right: 24, flexDirection: 'row',
+    backgroundColor: colors.surface, borderRadius: 12, padding: 4,
+  },
+  modeTab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 9 },
+  modeTabActive: { backgroundColor: colors.tint },
+  modeTabText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  modeTabTextActive: { color: colors.onTint },
   title: { fontSize: 18, fontWeight: '600', color: colors.text, textAlign: 'center' },
   subtitle: { fontSize: 13, color: colors.textSubtle, marginTop: 6, marginBottom: 32, textAlign: 'center' },
   codeSection: { width: '100%', alignItems: 'center' },

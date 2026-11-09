@@ -408,6 +408,16 @@ const uploadToSupabase = async (uri: string) => {
             <Text style={styles.badgeText}>門市結帳</Text>
           </View>
         </Pressable>
+        {/* 電子發票載具（見 plan-einvoice-carrier.md），右側顯示已綁定的號碼 */}
+        <Pressable
+          onPress={() => router.push('/einvoice-carrier')}
+          style={[styles.menuItem, { marginTop: 10 }]}
+        >
+          <Text style={styles.menuItemText}>電子發票載具</Text>
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>{user?.einvoice_carrier || '未設定'}</Text>
+          </View>
+        </Pressable>
         {/* 推薦好友（見 plan-referral.md） */}
         <Pressable
           onPress={() => router.push('/referral')}

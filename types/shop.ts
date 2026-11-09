@@ -47,6 +47,9 @@ export interface Order {
   // coupon_id 有值代表這筆訂單用了哪張券，coupon_discount 是實際折抵的金額
   coupon_id: number | null;
   coupon_discount: number;
+  // 電子發票載具（2026-11-09，見 plan-einvoice-carrier.md）：後端在下單當下從會員資料複製的快照，
+  // 之後會員改載具不影響這筆；舊資料／舊後端沒有這個欄位
+  einvoice_carrier?: string | null;
 }
 
 // ECPay AioCheckOut 的表單資料：action_url 是綠界的收銀台網址，fields 是連同
