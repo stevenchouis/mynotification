@@ -23,7 +23,7 @@ App 或後端出錯時自動回報到 Sentry 並寄信通知，不用等使用�
 ## 驗證（2026-11-09）
 - [x] 後端：使用者用 Postman 打測試端點，Sentry fastapi-pj 收到 API 與排程兩筆
 - [x] App：臨時按鈕 `Sentry.captureException` → Sentry mynotification 收到、標出檔案位置、使用者收到 Email（按鈕已移除）
-- [ ] Preview／正式版 build 的 source map 上傳（需使用者先建 `SENTRY_AUTH_TOKEN`，下次打包 Preview 時確認）
+- [ ] Preview／正式版 build 的 source map 上傳：`SENTRY_AUTH_TOKEN` 已於 2026-11-09 存進 EAS preview／production（secret），下次打包 Preview 時確認 build 成功、Sentry 的錯誤顯示原始檔名行號
 
 ## 之後可以做
 - staff-scanner 也接 Sentry
