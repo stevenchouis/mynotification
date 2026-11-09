@@ -208,7 +208,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 ### API 層
 
 - **`services/api.ts`** — 預先設定好的 Axios 實例，內建 request 攔截器（自動從 SecureStore 附加 `Authorization: Bearer <token>`）與 response 攔截器。需要驗證的呼叫**一律**從此處匯入 `api`，不要直接用原生 `axios` 手動帶 token——那樣吃不到自動續期，通行證過期就直接失敗（2026-11-09 已把 `inbox.tsx`、`settings.tsx`、`(tabs)/_layout.tsx` 改成共用實例）。
-- **登入自動續期（Refresh Token，2026-11-09，見 `plan-refresh-token.md`）** — 通行證（JWT）30 分鐘過期；登入時後端另發續期證 `refresh_token`（存 SecureStore 的 `refreshToken`，`useAuthStore.ts` 的 `REFRESH_TOKEN_KEY`，不放 Zustand 狀態）。`api.ts` 回應攔截器收到 401：先看這個請求帶的是不是舊通行證（別的請求已經換好就直接用新的重送），否則呼叫 `POST /login/refresh` 換一組新的（**同時多個 401 共用同一個 `refreshPromise`**，避免同一張續期證被用兩次）、存新的兩張證、`useAuthStore.setState({ userToken })`（不走 `setUserToken`，那個會清掉所有查詢快取）、重送原請求一次（`_retried`）；換證失敗或重送仍 401 才登出並跳「登入已過期」。後端每次換證都作廢舊的續期證（rotation），超過 30 秒再用舊的會被當成外洩、該帳號所有裝置一起登出（30 秒內有寬限）。續期證效期依角色：customer 30 天、staff 7 天，每次換證重新起算。`logout()` 會先用原生 `fetch` 呼叫 `POST /logout` 作廢這台裝置的續期證（不等結果）。`completeLogin(accessToken, refreshToken?)`，四個登入呼叫都帶 `res.data.refresh_token`；舊後端沒回時行為跟以前一樣。實機測試：Render 環境變數 `SHORT_ACCESS_TOKEN_USER_IDS=<user id>` 可讓指定帳號的通行證只有 1 分鐘，測完要刪掉。
+- **登入自動續期（Refresh Token，2026-11-09，見 `plan-refresh-token.md`）** — 通行證（JWT）30 分鐘過期；登入時後端另發續期證 `refresh_token`（存 SecureStore 的 `refreshToken`，`useAuthStore.ts` 的 `REFRESH_TOKEN_KEY`，不放 Zustand 狀態）。`api.ts` 回應攔截器收到 401：先看這個請求帶的是不是舊通行證（別的請求已經換好就直接用新的重送），否則呼叫 `POST /login/refresh` 換一組新的（**同時多個 401 共用同一個 `refreshPromise`**，避免同一張續期證被用兩次）、存新的兩張證、`useAuthStore.setState({ userToken })`（不走 `setUserToken`，那個會清掉所有查詢快取）、重送原請求一次（`_retried`）；換證失敗或重送仍 401 才登出並跳「登入已過期」。後端每次換證都作廢舊的續期證（rotation），超過 30 秒再用舊的會被當成外洩、該帳號所有裝置一起登出（30 秒內有寬限）。續期證效期依角色：customer 30 天、staff 7 天，每次換證重新起算。`logout()` 會在背景用原生 `fetch` 呼叫 `POST /logout` 作廢這台裝置的續期證（不等結果，見下方「推播 token 清除與登出解除」的順序）。`completeLogin(accessToken, refreshToken?)`，四個登入呼叫都帶 `res.data.refresh_token`；舊後端沒回時行為跟以前一樣。實機測試：Render 環境變數 `SHORT_ACCESS_TOKEN_USER_IDS=<user id>` 可讓指定帳號的通行證只有 1 分鐘，測完要刪掉。
+- **推播 token 清除與登出解除（2026-11-09，見 `plan-push-token-cleanup.md`）** — 登記 Expo Push Token 成功後（`authFlow.ts` 的 `completeLogin()`、`(tabs)/_layout.tsx` 每次掛載的同步）把 token 存進 SecureStore 的 `expoPushToken`（`useAuthStore.ts` 的 `EXPO_PUSH_TOKEN_KEY`）；`logout()` 先讀出通行證／續期證／推播 token，畫面立刻切回登入頁，背景再依序（`useAuthStore.ts` 的 `revokeOnServer()`）：`POST /users/push-tokens/unregister` 解除這支手機的推播（否則登出後還會收到原帳號的推播）→ 若 401（閒置超過 30 分鐘通行證過期）就用續期證換一次再重試，換不到就略過 → 用最新的續期證打 `POST /logout` 作廢。staff-scanner 同做法。後端負責：同一個 token 只屬於一個人（換人登入自動移轉）、Expo 回 `DeviceNotRegistered`（ticket 或 receipt）就刪、`last_seen_at` 超過 90 天就刪。
 
 ### Supabase 整合
 
@@ -230,7 +231,8 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 | GET | `/api/v1/users/me` | 取得目前使用者資料（含 `einvoice_carrier`，見「電子發票載具」章節） |
 | PUT | `/api/v1/users/me` | 更新個人資料（例如 avatar_url）；可帶 `einvoice_carrier`（字串設定、`null` 清除，格式不合 `400 invalid_einvoice_carrier`），沒帶的欄位不動 |
 | DELETE | `/api/v1/users/me` | 刪除（匿名化）目前帳號，成功回 204，立即生效；`role=staff` 回 403；之後舊 JWT 一律 401。見「刪除帳號」章節 |
-| POST | `/api/v1/users/push-tokens` | 註冊 Expo Push Token |
+| POST | `/api/v1/users/push-tokens` | 註冊 Expo Push Token（同一個 token 已存在就更新擁有者與 `last_seen_at`，換人登入自動移轉） |
+| POST | `/api/v1/users/push-tokens/unregister` | 登出時解除這支手機的推播，body `{ token }`，只刪屬於目前使用者的，一律 204 |
 | GET | `/api/v1/notifications/inbox` | 取得通知列表 |
 | PUT | `/api/v1/notifications/:id/read` | 將單筆標記為已讀 |
 | PUT | `/api/v1/notifications/read-all` | 將全部標記為已讀 |

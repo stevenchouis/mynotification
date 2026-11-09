@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query'; // 1. 匯入 Query 工具
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
+import * as SecureStore from 'expo-secure-store';
 import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState, Platform, Vibration } from 'react-native';
@@ -11,7 +12,7 @@ import PickupCallModal from '../../../components/PickupCallModal';
 import { api } from '../../../services/api';
 import PopupBannerModal from '../../../components/PopupBannerModal';
 import { useThemeColors } from '../../../hooks/useThemeColors';
-import { useAuthStore } from '../../../store/useAuthStore';
+import { EXPO_PUSH_TOKEN_KEY, useAuthStore } from '../../../store/useAuthStore';
 import { useCartStore } from '../../../store/useCartStore';
 import { useFavoritesStore } from '../../../store/useFavoritesStore';
 import { useNotificationStore } from '../../../store/useNotificationStore';
@@ -61,6 +62,8 @@ export default function TabLayout() {
         await api.post('/api/v1/users/push-tokens', {
           token, device_name: Platform.OS, app_id: 'mynotification',
         });
+        // 記住這支手機登記的 token，登出時解除（見 plan-push-token-cleanup.md）
+        await SecureStore.setItemAsync(EXPO_PUSH_TOKEN_KEY, token);
       } catch (e) {
         console.warn("Token 同步失敗", e);
       }

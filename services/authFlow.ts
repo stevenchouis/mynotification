@@ -5,7 +5,9 @@ import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import { useAuthStore } from '../store/useAuthStore';
+import * as SecureStore from 'expo-secure-store';
+
+import { EXPO_PUSH_TOKEN_KEY, useAuthStore } from '../store/useAuthStore';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -43,6 +45,8 @@ export async function completeLogin(accessToken: string, refreshToken?: string |
       },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
+    // 記住這支手機登記的 token，登出時解除（見 plan-push-token-cleanup.md）
+    await SecureStore.setItemAsync(EXPO_PUSH_TOKEN_KEY, expoToken);
   }
 
   router.replace('/home');
