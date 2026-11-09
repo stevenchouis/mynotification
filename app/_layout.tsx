@@ -19,6 +19,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { Href, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
@@ -69,6 +70,13 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const router = useRouter();
   const scheme = useResolvedScheme();
+
+  // 畫面切換（返回）動畫途中，前後兩頁之間會露出 App 最底層的原生背景；原本沒設定、是系統預設色，
+  // 跟頁面背景不同，每次返回都像閃一下白／黑（使用者 2026-11-09 回報）。這裡把最底層背景設成跟
+  // 頁面一樣、並跟著深淺色模式切換。expo-system-ui 早已安裝，純 JS 呼叫不用重新 build
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(Colors[scheme].background).catch(() => {});
+  }, [scheme]);
 
   // 全域繁中字型（Noto Sans TC），載入完成前先不渲染畫面，避免先閃過系統預設字型
   const [fontsLoaded] = useFonts({
@@ -268,7 +276,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={scheme === 'dark' ? darkNavTheme : lightNavTheme}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors[scheme].background }}>
           {/* 狀態列圖示顏色跟著系統深色/淺色模式切換：淺色底用深色圖示、深色底用淺色圖示，
               確保 Android edge-to-edge 下時間/電量/訊號等系統圖示不會跟背景同色而看不見 */}
           <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
@@ -280,7 +288,7 @@ export default function RootLayout() {
               一樣會被判定為「不是 Screen」而在 console 狂噴 "Layout children must be of type
               Screen" 警告（雖然畫面沒問題，但每次重新 render 都會再印一次）。改用 Expo Router 官方
               提供的 `<Stack.Protected guard={...}>` 包一整組畫面，才是正確、不會噴警告的寫法。 */}
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors[scheme].background } }}>
             <Stack.Protected guard={!!userToken}>
               {/* 已登入：把 (drawer) 放在最上面，App 啟動會直接進入主頁面（Drawer 裡包著原本的 (tabs)） */}
               <Stack.Screen name="(drawer)" />
