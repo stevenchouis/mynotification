@@ -22,6 +22,7 @@ export default function PrivacyScreen() {
         <Bullet styles={styles}>裝置推播 Token：用於發送推播通知，不含個人身分資訊</Bullet>
         <Bullet styles={styles}>頭像圖片：您主動上傳至個人資料的照片</Bullet>
         <Bullet styles={styles}>優惠券使用紀錄：核銷時間與核銷結果</Bullet>
+        <Bullet styles={styles}>錯誤報告：App 發生錯誤或當機時，會回報錯誤內容、裝置型號、作業系統與 App 版本，用於修正問題，不含 Email、密碼等個人資料</Bullet>
       </Section>
 
       <Section styles={styles} title="資料的用途">
@@ -33,9 +34,10 @@ export default function PrivacyScreen() {
 
       <Section styles={styles} title="第三方服務">
         <Bullet styles={styles}>Google：用於「使用 Google 帳號登入」功能，僅用來驗證身分</Bullet>
-        <Bullet styles={styles}>Resend：用於寄送 Email 連結登入信件</Bullet>
+        <Bullet styles={styles}>Brevo：用於寄送 Email 連結登入信件與刪除帳號確認信</Bullet>
         <Bullet styles={styles}>Supabase：用於儲存您上傳的頭像圖片</Bullet>
         <Bullet styles={styles}>Expo：用於發送裝置推播通知</Bullet>
+        <Bullet styles={styles}>Sentry：用於接收 App 與伺服器的錯誤報告，協助我們發現並修正問題</Bullet>
       </Section>
 
       <Section styles={styles} title="資料的保存與安全">

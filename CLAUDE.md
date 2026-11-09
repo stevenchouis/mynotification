@@ -213,6 +213,15 @@ Android 上要能實際收到 Expo 推播，除了程式碼外還需要完成 Fi
 - **登入自動續期（Refresh Token，2026-11-09，見 `plan-refresh-token.md`）** — 通行證（JWT）30 分鐘過期；登入時後端另發續期證 `refresh_token`（存 SecureStore 的 `refreshToken`，`useAuthStore.ts` 的 `REFRESH_TOKEN_KEY`，不放 Zustand 狀態）。`api.ts` 回應攔截器收到 401：先看這個請求帶的是不是舊通行證（別的請求已經換好就直接用新的重送），否則呼叫 `POST /login/refresh` 換一組新的（**同時多個 401 共用同一個 `refreshPromise`**，避免同一張續期證被用兩次）、存新的兩張證、`useAuthStore.setState({ userToken })`（不走 `setUserToken`，那個會清掉所有查詢快取）、重送原請求一次（`_retried`）；換證失敗或重送仍 401 才登出並跳「登入已過期」。後端每次換證都作廢舊的續期證（rotation），超過 30 秒再用舊的會被當成外洩、該帳號所有裝置一起登出（30 秒內有寬限）。續期證效期依角色：customer 30 天、staff 7 天，每次換證重新起算。`logout()` 會在背景用原生 `fetch` 呼叫 `POST /logout` 作廢這台裝置的續期證（不等結果，見下方「推播 token 清除與登出解除」的順序）。`completeLogin(accessToken, refreshToken?)`，四個登入呼叫都帶 `res.data.refresh_token`；舊後端沒回時行為跟以前一樣。實機測試：Render 環境變數 `SHORT_ACCESS_TOKEN_USER_IDS=<user id>` 可讓指定帳號的通行證只有 1 分鐘，測完要刪掉。
 - **推播 token 清除與登出解除（2026-11-09，見 `plan-push-token-cleanup.md`）** — 登記 Expo Push Token 成功後（`authFlow.ts` 的 `completeLogin()`、`(tabs)/_layout.tsx` 每次掛載的同步）把 token 存進 SecureStore 的 `expoPushToken`（`useAuthStore.ts` 的 `EXPO_PUSH_TOKEN_KEY`）；`logout()` 先讀出通行證／續期證／推播 token，畫面立刻切回登入頁，背景再依序（`useAuthStore.ts` 的 `revokeOnServer()`）：`POST /users/push-tokens/unregister` 解除這支手機的推播（否則登出後還會收到原帳號的推播）→ 若 401（閒置超過 30 分鐘通行證過期）就用續期證換一次再重試，換不到就略過 → 用最新的續期證打 `POST /logout` 作廢。staff-scanner 同做法。後端負責：同一個 token 只屬於一個人（換人登入自動移轉）、Expo 回 `DeviceNotRegistered`（ticket 或 receipt）就刪、`last_seen_at` 超過 90 天就刪。
 
+### 錯誤監控（Sentry，2026-11-09，見 `plan-error-monitoring.md`）
+
+App 與後端都接 Sentry（組織 `kc-1n`，專案 `mynotification`／`fastapi-pj`），只開錯誤監控，新錯誤寄 Email。沒用 EAS Observe：它要 Expo SDK 55+（我們是 54），而且沒有閃退回報。
+
+- **App**：`app/_layout.tsx` 的 `Sentry.init`（DSN 讀 `EXPO_PUBLIC_SENTRY_DSN`、`sendDefaultPii: false`、`tracesSampleRate: 0`、environment 依 `__DEV__` 分 `development`／`production`），`export default Sentry.wrap(RootLayout)`；`app.json` plugin `@sentry/react-native/expo`；`metro.config.js` 用 `getSentryExpoConfig`（產生 debug ID 讓正式版能還原檔名行號）。**`@sentry/react-native` 是原生模組**，Dev Build 已重 build（d626712a），舊 Dev Build 不能用。
+- **環境變數**：`EXPO_PUBLIC_SENTRY_DSN` 在本機 `.env` 與 EAS 三個環境（plaintext）；`SENTRY_AUTH_TOKEN` 只在 EAS preview／production（secret，使用者自己建，雲端打包上傳 source map 用，沒有它 Preview／正式版 build 會失敗）；`eas.json` development profile 設 `SENTRY_DISABLE_AUTO_UPLOAD=true`。
+- **後端**：Render 環境變數 `SENTRY_DSN`；API 5xx、排程例外（含被吞掉的）、推播／寄信異常都會回報；測試端點 `POST /api/v1/monitoring/test-error`（`?source=scheduler`，需 `X-Admin-Key`）。
+- 隱私權政策（`privacy.tsx`）已寫明會收集錯誤報告、第三方服務列了 Sentry；Google Play 資料安全性表單要申報「當機紀錄／診斷資料」。
+
 ### Supabase 整合
 
 僅用於 `settings.tsx` 中的頭像圖片儲存。圖片會直接從客戶端上傳至 `avatars` bucket，為了相容 Android，使用 `arrayBuffer`（而非 `blob()`）；上傳後取得的公開 URL 會再透過 `PUT /api/v1/users/me` 同步回 FastAPI 後端。

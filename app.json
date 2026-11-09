@@ -73,6 +73,14 @@
             "useFrameworks": "static"
           }
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "kc-1n",
+          "project": "mynotification"
+        }
       ]
     ],
     "experiments": {

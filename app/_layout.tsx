@@ -20,6 +20,7 @@ import * as Notifications from 'expo-notifications';
 import { Href, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
+import * as Sentry from '@sentry/react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
@@ -67,7 +68,19 @@ const darkNavTheme: NavTheme = {
 // 先閃過一片空白（return null）畫面。必須在 module 層級呼叫，元件外只需執行一次。
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+// Sentry 錯誤監控（見 plan-error-monitoring.md）：App 閃退、畫面當掉、未處理的錯誤自動回報到
+// kc-1n.sentry.io 的 mynotification 專案，新錯誤會寄信通知。只開錯誤監控，不開效能追蹤、操作錄影。
+// 不送個資（sendDefaultPii: false），environment 區分開發版（Dev Build）與正式版。
+// 原生模組：裝了 @sentry/react-native 之後 Dev Build 要重新 eas build 才有原生閃退回報。
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
+  environment: __DEV__ ? 'development' : 'production',
+  sendDefaultPii: false,
+  tracesSampleRate: 0,
+});
+
+function RootLayout() {
   const router = useRouter();
   const scheme = useResolvedScheme();
 
@@ -538,3 +551,6 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+// Sentry.wrap：接住整個 App 的未處理錯誤（含畫面渲染錯誤）並回報
+export default Sentry.wrap(RootLayout);
