@@ -93,6 +93,12 @@
         "projectId": "000fa6a2-c352-4e3b-a8a2-b92c3df4d01c"
       }
     },
-    "owner": "stevenchouis"
+    "owner": "stevenchouis",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/000fa6a2-c352-4e3b-a8a2-b92c3df4d01c"
+    }
   }
 }

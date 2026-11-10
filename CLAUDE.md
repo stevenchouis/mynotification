@@ -222,6 +222,16 @@ App 與後端都接 Sentry（組織 `kc-1n`，專案 `mynotification`／`fastapi
 - **後端**：Render 環境變數 `SENTRY_DSN`；API 5xx、排程例外（含被吞掉的）、推播／寄信異常都會回報；測試端點 `POST /api/v1/monitoring/test-error`（`?source=scheduler`，需 `X-Admin-Key`）。
 - 隱私權政策（`privacy.tsx`）已寫明會收集錯誤報告、第三方服務列了 Sentry；Google Play 資料安全性表單要申報「當機紀錄／診斷資料」。
 
+### EAS Update（OTA 更新，2026-11-10）
+
+Preview／正式版只改 JS、圖片、Lottie 等時，用 `eas update` 直接推給已安裝的 App，不用重新打包上架。開發版（Dev Build）走 Metro，用不到。
+
+- **設定**：`expo-updates`（原生模組，裝了之後 Preview／正式版要重新 `eas build` 一次才收得到更新）；`app.json` 的 `updates.url` 與 `runtimeVersion: { policy: "appVersion" }`；`eas.json` 三個 build profile 各有同名 `channel`（development／preview／production），EAS 上的頻道與 branch 同名。
+- **runtimeVersion 用 `appVersion`，不用 `fingerprint`**：原本選 fingerprint（自動偵測原生改動），但裝了 `expo-updates` 之後，`expo start` 每次回應手機都要重算原生指紋（實測約 15 秒），Dev Client 讀 manifest 逾時（`SocketTimeoutException`），2026-11-10 改回 appVersion。**代價：只要改到原生部分（新增／升級原生套件、`app.json` 的原生設定、Expo SDK 升級），就要把 `app.json` 的 `version` 往上加（例如 1.0.0 → 1.0.1）再重新 build**，否則新的 JS 更新可能推給舊原生殼、讓 App 壞掉。
+- **推更新**：`npx eas-cli@latest update --channel preview --environment preview --message "..."`（`--environment` 決定打包時讀哪個 EAS 環境的 `EXPO_PUBLIC_*`，要跟頻道一致）。**production 頻道只在使用者明確同意時才推**。
+- **生效時機**：預設行為（沒寫額外程式）——App 開啟時背景下載，**完全關掉再打開**才套用新版，所以最多要冷啟動兩次。
+- **Sentry**：`eas update` 推出去的 JS 不會自動上傳 source map，更新版本裡的錯誤堆疊可能只顯示壓縮後的位置；之後需要時再補 `npx sentry-expo-upload-sourcemaps dist`。
+
 ### Supabase 整合
 
 僅用於 `settings.tsx` 中的頭像圖片儲存。圖片會直接從客戶端上傳至 `avatars` bucket，為了相容 Android，使用 `arrayBuffer`（而非 `blob()`）；上傳後取得的公開 URL 會再透過 `PUT /api/v1/users/me` 同步回 FastAPI 後端。
