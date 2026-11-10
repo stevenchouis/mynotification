@@ -76,33 +76,67 @@ interface QuickAction {
   id: string;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
+  // 圓底顏色（白色 icon 疊在上面），見 QUICK_ACTION_COLORS
+  color: string;
   route?: '/coupons' | '/favorites' | '/inbox' | '/settings' | '/faq' | '/about' | '/privacy' | '/points' | '/member-code';
   isDrawerToggle?: boolean;
   // 有設定的入口改用動畫圖示（components/AnimatedQuickIcon.tsx），每 3 秒播一次；
   // animationDelayMs 讓三個動畫錯開，不會同時動
   animation?: QuickIconAnimation;
   animationDelayMs?: number;
-  // 有設定的入口改用 Lottie 動畫圖示（components/LottieQuickIcon.tsx），優先於 animation
+  // 有設定的入口改用 Lottie 動畫圖示（components/LottieQuickIcon.tsx），優先於 animation；
+  // Lottie 一律不停循環。lottieColorFilters 依圖層名稱套色，沒給就保留動畫檔原本的顏色
   lottieSource?: AnimationObject;
+  lottieSize?: number;
+  lottieColorFilters?: { keypath: string; color: string }[];
 }
 
 // 會員條碼的 Lottie 動畫圖示是手寫的向量動畫（條碼 + 掃描光線），見 components/LottieQuickIcon.tsx
 const MEMBER_CODE_LOTTIE: AnimationObject = require('../../../assets/lottie/member-code-scan.json');
 const SCANLINE_RED = '#E53935';
+// 紅利點數的彩色禮物動畫（使用者 2026-11-10 參考 HAPPY GO 第二排要求「豐富色彩的網路免費動畫」）：
+// LottieFiles「Playsit – Gift for Quiz」https://lottiefiles.com/free-animation/playsit-gift-for-quiz-aovMnpweGa，
+// Lottie Simple License（可免費商用、不需標示作者）。3D 禮物盒是一張 PNG＋向量閃光：原檔是 .lottie（圖片另外放），
+// 已把 PNG 壓成 256 色後以 base64 內嵌進 JSON（RN 的 Lottie 讀 JSON 時不會去抓外部圖片）；原畫布 250×250 禮物太小，
+// 已裁成中間 140×140（所有圖層位置平移 -55）。保留原本配色、不套色
+const POINTS_GIFT_LOTTIE: AnimationObject = require('../../../assets/lottie/points-gift.json');
+
+// 功能 Grid 的彩色圓底（使用者 2026-11-10 參考 HAPPY GO 要求：實心彩色圓底＋白色 icon）。
+// 選柔和的大地色，跟 MUJI 木質風不衝突；跟 BANNER_COPY 一樣視為品牌外觀，刻意不隨深淺色主題切換，
+// 白色 icon 在兩種主題下都清楚
+const QUICK_ACTION_COLORS = {
+  terracotta: '#C47A5A',
+  mustard: '#CFA046',
+  rose: '#C46E6E',
+  slate: '#6F879E',
+  olive: '#859456',
+  sage: '#6E9C84',
+  plum: '#957CA2',
+  teal: '#4F7775',
+  stone: '#9A8E80',
+  // 彩色插圖用的淺米色圓底（比照 HAPPY GO 第二排：淺色圓底襯多色插圖）
+  cream: '#F6ECE0',
+} as const;
+const QUICK_ICON_COLOR = '#FFFFFF';
 
 // 3x3 功能捷徑：全部對應 App 內既有畫面，不是假連結。原本的「隱私權政策」改放「會員條碼」
 // （門市收銀入口，見 plan-member-code-checkout.md），隱私權政策仍可從 Drawer 選單進入，不會完全不能用
 const QUICK_ACTIONS: QuickAction[] = [
-  { id: 'coupons', label: '我的', icon: 'pricetag-outline', route: '/coupons' },
-  { id: 'points', label: '紅利點數', icon: 'star-outline', route: '/points', animation: 'twinkle', animationDelayMs: 1000 },
-  { id: 'favorites', label: '我的收藏', icon: 'heart-outline', route: '/favorites', animation: 'heartbeat', animationDelayMs: 0 },
+  { id: 'coupons', label: '我的', icon: 'pricetag', color: QUICK_ACTION_COLORS.terracotta, route: '/coupons' },
+  { id: 'points', label: '紅利點數', icon: 'gift', color: QUICK_ACTION_COLORS.cream, route: '/points', lottieSource: POINTS_GIFT_LOTTIE, lottieSize: 46, animationDelayMs: 1000 },
+  { id: 'favorites', label: '我的收藏', icon: 'heart', color: QUICK_ACTION_COLORS.rose, route: '/favorites', animation: 'heartbeat', animationDelayMs: 0 },
   // 鈴鐺只在有未讀通知時搖（見 QuickActionsGrid 的 active 判斷）
-  { id: 'inbox', label: '通知中心', icon: 'notifications-outline', route: '/inbox', animation: 'shake', animationDelayMs: 2000 },
-  { id: 'settings', label: '帳號設定', icon: 'settings-outline', route: '/settings' },
-  { id: 'faq', label: '常見問題', icon: 'help-circle-outline', route: '/faq' },
-  { id: 'about', label: '關於此App', icon: 'information-circle-outline', route: '/about' },
-  { id: 'member-code', label: '會員條碼', icon: 'barcode-outline', route: '/member-code', lottieSource: MEMBER_CODE_LOTTIE, animationDelayMs: 1950 },
-  { id: 'more', label: '全部服務', icon: 'grid-outline', isDrawerToggle: true },
+  { id: 'inbox', label: '通知中心', icon: 'notifications', color: QUICK_ACTION_COLORS.slate, route: '/inbox', animation: 'shake', animationDelayMs: 2000 },
+  { id: 'settings', label: '帳號設定', icon: 'settings', color: QUICK_ACTION_COLORS.olive, route: '/settings' },
+  { id: 'faq', label: '常見問題', icon: 'help-circle', color: QUICK_ACTION_COLORS.sage, route: '/faq' },
+  { id: 'about', label: '關於此App', icon: 'information-circle', color: QUICK_ACTION_COLORS.plum, route: '/about' },
+  { id: 'member-code', label: '會員條碼', icon: 'barcode', color: QUICK_ACTION_COLORS.teal, route: '/member-code', lottieSource: MEMBER_CODE_LOTTIE, animationDelayMs: 1950,
+    lottieColorFilters: [
+      { keypath: 'bars', color: QUICK_ICON_COLOR },
+      // 掃描光線用固定的雷射紅（使用者指定），模擬條碼掃描器的紅光，刻意不隨深淺色主題切換
+      { keypath: 'scanline', color: SCANLINE_RED },
+    ] },
+  { id: 'more', label: '全部服務', icon: 'grid', color: QUICK_ACTION_COLORS.stone, isDrawerToggle: true },
 ];
 
 interface PromoSlide {
@@ -228,30 +262,26 @@ function QuickActionsGrid() {
     <View style={styles.quickGrid}>
       {QUICK_ACTIONS.map((action) => (
         <Pressable key={action.id} style={styles.quickAction} onPress={() => handlePress(action)}>
-          <View style={styles.quickIconCircle}>
+          <View style={[styles.quickIconCircle, { backgroundColor: action.color }]}>
             {action.lottieSource ? (
               <LottieQuickIcon
                 source={action.lottieSource}
-                size={30}
+                size={action.lottieSize ?? 30}
                 continuous
                 delayMs={action.animationDelayMs}
-                colorFilters={[
-                  { keypath: 'bars', color: colors.textMuted },
-                  // 掃描光線用固定的雷射紅（使用者指定），模擬條碼掃描器的紅光，刻意不隨深淺色主題切換
-                  { keypath: 'scanline', color: SCANLINE_RED },
-                ]}
+                colorFilters={action.lottieColorFilters}
               />
             ) : action.animation ? (
               <AnimatedQuickIcon
                 name={action.icon}
                 size={22}
-                color={colors.textMuted}
+                color={QUICK_ICON_COLOR}
                 animation={action.animation}
                 delayMs={action.animationDelayMs}
                 active={action.id !== 'inbox' || unreadCount > 0}
               />
             ) : (
-              <Ionicons name={action.icon} size={22} color={colors.textMuted} />
+              <Ionicons name={action.icon} size={22} color={QUICK_ICON_COLOR} />
             )}
             {action.id === 'inbox' && unreadCount > 0 && (
               <View style={styles.quickBadge}>
@@ -626,13 +656,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 20 },
   quickAction: { width: '33.33%', alignItems: 'center', marginBottom: 16 },
+  // 背景色由每個入口的 color 決定（見 QUICK_ACTION_COLORS）
   quickIconCircle: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface,
+    width: 48, height: 48, borderRadius: 24,
     justifyContent: 'center', alignItems: 'center'
   },
+  // 加一圈頁面底色的外框，讓紅點跟彩色圓底分得開
   quickBadge: {
-    position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3
+    position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: colors.background
   },
   quickBadgeText: { fontSize: 9, color: colors.white, fontWeight: '700' },
   quickLabel: { fontSize: 11, color: colors.textMuted, marginTop: 6, textAlign: 'center' },
